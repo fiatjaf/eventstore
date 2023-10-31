@@ -1,6 +1,7 @@
 package postgresql
 
 import (
+	"github.com/fiatjaf/eventstore"
 	"github.com/jmoiron/sqlx"
 	"github.com/jmoiron/sqlx/reflectx"
 	_ "github.com/lib/pq"
@@ -13,6 +14,8 @@ const (
 	queryKindsLimit   = 10
 	queryTagsLimit    = 10
 )
+
+var _ eventstore.Storage = (*PostgresBackend)(nil)
 
 func (b *PostgresBackend) Init() error {
 	db, err := sqlx.Connect("postgres", b.DatabaseURL)

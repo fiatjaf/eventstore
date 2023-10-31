@@ -17,11 +17,13 @@ func (b SQLite3Backend) QueryEvents(ctx context.Context, filter nostr.Filter) (c
 
 	query, params, err := queryEventsSql(filter, false)
 	if err != nil {
+		close(ch)
 		return nil, err
 	}
 
 	rows, err := b.DB.Query(query, params...)
 	if err != nil && err != sql.ErrNoRows {
+		close(ch)
 		return nil, fmt.Errorf("failed to fetch events using query %q: %w", query, err)
 	}
 
@@ -150,11 +152,11 @@ func queryEventsSql(filter nostr.Filter, doCount bool) (string, []any, error) {
 	}
 
 	if filter.Since != nil {
-		conditions = append(conditions, "created_at > ?")
+		conditions = append(conditions, "created_at >= ?")
 		params = append(params, filter.Since)
 	}
 	if filter.Until != nil {
-		conditions = append(conditions, "created_at < ?")
+		conditions = append(conditions, "created_at <= ?")
 		params = append(params, filter.Until)
 	}
 	if filter.Search != "" {

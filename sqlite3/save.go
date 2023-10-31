@@ -25,20 +25,8 @@ func (b *SQLite3Backend) SaveEvent(ctx context.Context, evt *nostr.Event) error 
 	}
 
 	if nr == 0 {
-		return khatru.ErrDupEvent
+		return storage.ErrDupEvent
 	}
 
 	return nil
-}
-
-func (b *SQLite3Backend) BeforeSave(ctx context.Context, evt *nostr.Event) {
-	// do nothing
-}
-
-func (b *SQLite3Backend) AfterSave(evt *nostr.Event) {
-	// delete all but the 100 most recent ones for each key
-	b.DB.Exec(`DELETE FROM event WHERE pubkey = $1 AND kind = $2 AND created_at < (
-      SELECT created_at FROM event WHERE pubkey = $1
-      ORDER BY created_at DESC OFFSET 100 LIMIT 1
-    )`, evt.PubKey, evt.Kind)
 }

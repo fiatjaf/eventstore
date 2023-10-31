@@ -17,11 +17,13 @@ func (b PostgresBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (
 
 	query, params, err := b.queryEventsSql(filter, false)
 	if err != nil {
+		close(ch)
 		return nil, err
 	}
 
 	rows, err := b.DB.Query(query, params...)
 	if err != nil && err != sql.ErrNoRows {
+		close(ch)
 		return nil, fmt.Errorf("failed to fetch events using query %q: %w", query, err)
 	}
 
@@ -155,11 +157,11 @@ func (b PostgresBackend) queryEventsSql(filter nostr.Filter, doCount bool) (stri
 	}
 
 	if filter.Since != nil {
-		conditions = append(conditions, "created_at > ?")
+		conditions = append(conditions, "created_at >= ?")
 		params = append(params, filter.Since)
 	}
 	if filter.Until != nil {
-		conditions = append(conditions, "created_at < ?")
+		conditions = append(conditions, "created_at <= ?")
 		params = append(params, filter.Until)
 	}
 

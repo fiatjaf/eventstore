@@ -11,8 +11,11 @@ import (
 
 	"github.com/elastic/go-elasticsearch/v8"
 	"github.com/elastic/go-elasticsearch/v8/esutil"
+	"github.com/fiatjaf/eventstore"
 	"github.com/nbd-wtf/go-nostr"
 )
+
+var _ eventstore.Storage = (*ElasticsearchStorage)(nil)
 
 type IndexedEvent struct {
 	Event         nostr.Event `json:"event"`
