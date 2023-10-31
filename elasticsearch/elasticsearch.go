@@ -15,7 +15,7 @@ import (
 	"github.com/nbd-wtf/go-nostr"
 )
 
-var _ eventstore.Storage = (*ElasticsearchStorage)(nil)
+var _ eventstore.Store = (*ElasticsearchStorage)(nil)
 
 type IndexedEvent struct {
 	Event         nostr.Event `json:"event"`

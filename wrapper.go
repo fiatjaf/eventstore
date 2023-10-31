@@ -7,7 +7,7 @@ import (
 )
 
 type Wrapper struct {
-	Storage
+	Store
 }
 
 func (w Wrapper) InjectEvent(ctx context.Context, evt *nostr.Event) error {

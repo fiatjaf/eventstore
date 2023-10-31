@@ -15,7 +15,7 @@ const (
 	queryTagsLimit    = 10
 )
 
-var _ eventstore.Storage = (*PostgresBackend)(nil)
+var _ eventstore.Store = (*PostgresBackend)(nil)
 
 func (b *PostgresBackend) Init() error {
 	db, err := sqlx.Connect("postgres", b.DatabaseURL)

@@ -7,7 +7,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-var _ eventstore.Storage = (*SQLite3Backend)(nil)
+var _ eventstore.Store = (*SQLite3Backend)(nil)
 
 var ddls = []string{
 	`CREATE TABLE IF NOT EXISTS event (

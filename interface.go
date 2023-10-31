@@ -6,8 +6,8 @@ import (
 	"github.com/nbd-wtf/go-nostr"
 )
 
-// Storage is a persistence layer for nostr events handled by a relay.
-type Storage interface {
+// Store is a persistence layer for nostr events handled by a relay.
+type Store interface {
 	// Init is called at the very beginning by [Server.Start], after [Relay.Init],
 	// allowing a storage to initialize its internal resources.
 	Init() error

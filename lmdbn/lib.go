@@ -15,7 +15,7 @@ const (
 	maxuint32 = 4294967295
 )
 
-var _ eventstore.Storage = (*LMDBBackend)(nil)
+var _ eventstore.Store = (*LMDBBackend)(nil)
 
 type LMDBBackend struct {
 	Path     string

@@ -19,7 +19,7 @@ const (
 	indexTagPrefix        byte = 6
 )
 
-var _ eventstore.Storage = (*BadgerBackend)(nil)
+var _ eventstore.Store = (*BadgerBackend)(nil)
 
 type BadgerBackend struct {
 	Path     string

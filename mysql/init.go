@@ -17,7 +17,7 @@ const (
 	queryTagsLimit    = 10
 )
 
-var _ eventstore.Storage = (*MySQLBackend)(nil)
+var _ eventstore.Store = (*MySQLBackend)(nil)
 
 var ddls = []string{
 	`CREATE TABLE IF NOT EXISTS event (
