@@ -6,6 +6,7 @@ import (
 	"sync/atomic"
 
 	"github.com/bmatsuo/lmdb-go/lmdb"
+	"github.com/fiatjaf/eventstore"
 	"github.com/nbd-wtf/go-nostr"
 )
 
@@ -13,6 +14,8 @@ const (
 	maxuint16 = 65535
 	maxuint32 = 4294967295
 )
+
+var _ eventstore.Storage = (*LMDBBackend)(nil)
 
 type LMDBBackend struct {
 	Path     string

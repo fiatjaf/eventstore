@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 
 	"github.com/dgraph-io/badger/v4"
+	"github.com/fiatjaf/eventstore"
 	"github.com/nbd-wtf/go-nostr"
 )
 
@@ -17,6 +18,8 @@ const (
 	indexPubkeyKindPrefix byte = 5
 	indexTagPrefix        byte = 6
 )
+
+var _ eventstore.Storage = (*BadgerBackend)(nil)
 
 type BadgerBackend struct {
 	Path     string
