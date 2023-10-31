@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/fiatjaf/khatru"
+	"github.com/fiatjaf/eventstore"
 	"github.com/nbd-wtf/go-nostr"
 )
 
@@ -21,7 +21,7 @@ func (b *PostgresBackend) SaveEvent(ctx context.Context, evt *nostr.Event) error
 	}
 
 	if nr == 0 {
-		return khatru.ErrDupEvent
+		return eventstore.ErrDupEvent
 	}
 
 	return nil

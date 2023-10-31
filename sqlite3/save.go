@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/fiatjaf/khatru"
+	"github.com/fiatjaf/eventstore"
 	"github.com/nbd-wtf/go-nostr"
 )
 
@@ -25,7 +25,7 @@ func (b *SQLite3Backend) SaveEvent(ctx context.Context, evt *nostr.Event) error 
 	}
 
 	if nr == 0 {
-		return storage.ErrDupEvent
+		return eventstore.ErrDupEvent
 	}
 
 	return nil
