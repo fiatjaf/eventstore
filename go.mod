@@ -1,6 +1,6 @@
 module github.com/fiatjaf/eventstore
 
-go 1.21.0
+go 1.21
 
 require (
 	github.com/aquasecurity/esquery v0.2.0
