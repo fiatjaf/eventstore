@@ -29,9 +29,10 @@ func (w RelayWrapper) Publish(ctx context.Context, evt nostr.Event) (nostr.Statu
 		if err != nil {
 			return nostr.PublishStatusFailed, fmt.Errorf("failed to query before replacing: %w", err)
 		}
-		previous := <-ch
-		if err := w.Store.DeleteEvent(ctx, previous); err != nil {
-			return nostr.PublishStatusFailed, fmt.Errorf("failed to delete event for replacing: %w", err)
+		if previous := <-ch; previous != nil {
+			if err := w.Store.DeleteEvent(ctx, previous); err != nil {
+				return nostr.PublishStatusFailed, fmt.Errorf("failed to delete event for replacing: %w", err)
+			}
 		}
 	} else if 30000 <= evt.Kind && evt.Kind < 40000 {
 		// parameterized replaceable event, delete before storing
@@ -41,8 +42,7 @@ func (w RelayWrapper) Publish(ctx context.Context, evt nostr.Event) (nostr.Statu
 			if err != nil {
 				return nostr.PublishStatusFailed, fmt.Errorf("failed to query before parameterized replacing: %w", err)
 			}
-			previous := <-ch
-			if previous != nil {
+			if previous := <-ch; previous != nil {
 				if err := w.Store.DeleteEvent(ctx, previous); err != nil {
 					return nostr.PublishStatusFailed, fmt.Errorf("failed to delete event for parameterized replacing: %w", err)
 				}
