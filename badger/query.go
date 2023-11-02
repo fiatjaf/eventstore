@@ -70,7 +70,6 @@ func (b BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch
 							if err == badger.ErrDiscardedTxn {
 								return
 							}
-
 							panic(err)
 						}
 						err = item.Value(func(val []byte) error {
@@ -219,7 +218,7 @@ func prepareQueries(filter nostr.Filter) (
 			for i, pubkeyHex := range filter.Authors {
 				pubkey, _ := hex.DecodeString(pubkeyHex)
 				if len(pubkey) != 32 {
-					continue
+					return nil, nil, 0, 0, 0, fmt.Errorf("invalid pubkey '%s'", pubkeyHex)
 				}
 				prefix := make([]byte, 1+32)
 				prefix[0] = index
