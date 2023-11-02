@@ -44,7 +44,8 @@ func (w RelayWrapper) Publish(ctx context.Context, evt nostr.Event) (nostr.Statu
 			}
 			if previous := <-ch; previous != nil {
 				if err := w.Store.DeleteEvent(ctx, previous); err != nil {
-					return nostr.PublishStatusFailed, fmt.Errorf("failed to delete event for parameterized replacing: %w", err)
+					return nostr.PublishStatusFailed,
+						fmt.Errorf("failed to delete event for parameterized replacing: %w", err)
 				}
 			}
 		}
