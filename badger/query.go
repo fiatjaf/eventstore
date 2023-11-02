@@ -1,16 +1,15 @@
-package lmdbn
+package badger
 
 import (
-	"bytes"
 	"container/heap"
 	"context"
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 
-	"github.com/bmatsuo/lmdb-go/lmdb"
+	"github.com/dgraph-io/badger/v4"
 	"github.com/nbd-wtf/go-nostr"
-	"github.com/nbd-wtf/go-nostr/nson"
+	nostr_binary "github.com/nbd-wtf/go-nostr/binary"
 )
 
 type query struct {
@@ -26,83 +25,70 @@ type queryEvent struct {
 	query int
 }
 
-func (b *LMDBBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (chan *nostr.Event, error) {
+func (b BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (chan *nostr.Event, error) {
 	ch := make(chan *nostr.Event)
 
-	dbi, queries, extraFilter, since, prefixLen, err := b.prepareQueries(filter)
+	queries, extraFilter, since, prefixLen, idxOffset, err := prepareQueries(filter)
 	if err != nil {
 		return nil, err
 	}
 
 	go func() {
-		err := b.lmdbEnv.View(func(txn *lmdb.Txn) error {
+		err := b.View(func(txn *badger.Txn) error {
+			// iterate only through keys and in reverse order
+			opts := badger.DefaultIteratorOptions
+			opts.PrefetchValues = false
+			opts.Reverse = true
+
 			// actually iterate
-			cursorClosers := make([]func(), len(queries))
+			iteratorClosers := make([]func(), len(queries))
 			for i, q := range queries {
 				go func(i int, q query) {
+					it := txn.NewIterator(opts)
+					iteratorClosers[i] = it.Close
+
 					defer close(q.results)
 
-					cursor, err := txn.OpenCursor(dbi)
-					if err != nil {
-						return
-					}
-					cursorClosers[i] = cursor.Close
-
-					var k []byte
-					var idx []byte
-					var iterr error
-
-					if _, _, errsr := cursor.Get(q.startingPoint, nil, lmdb.SetRange); errsr != nil {
-						if operr, ok := errsr.(*lmdb.OpError); !ok || operr.Errno != lmdb.NotFound {
-							// in this case it's really an error
-							panic(err)
-						} else {
-							// we're at the end and we just want notes before this,
-							// so we just need to set the cursor the last key, this is not a real error
-							k, idx, iterr = cursor.Get(nil, nil, lmdb.Last)
-						}
-					} else {
-						// move one back as the first step
-						k, idx, iterr = cursor.Get(nil, nil, lmdb.Prev)
-					}
-
-					for {
-						select {
-						case <-ctx.Done():
-							break
-						default:
-						}
-
-						// we already have a k and a v and an err from the cursor setup, so check and use these
-						if iterr != nil || !bytes.Equal(q.prefix, k[0:prefixLen]) {
-							return
-						}
+					for it.Seek(q.startingPoint); it.ValidForPrefix(q.prefix); it.Next() {
+						item := it.Item()
+						key := item.Key()
 
 						if !q.skipTimestamp {
-							createdAt := binary.BigEndian.Uint32(k[prefixLen:])
+							createdAt := binary.BigEndian.Uint32(key[prefixLen:idxOffset])
 							if createdAt < since {
 								break
 							}
 						}
 
+						idx := make([]byte, 5)
+						idx[0] = rawEventStorePrefix
+						copy(idx[1:], key[idxOffset:])
+
 						// fetch actual event
-						val, err := txn.Get(b.rawEventStore, idx)
+						item, err := txn.Get(idx)
+						if err != nil {
+							if err == badger.ErrDiscardedTxn {
+								return
+							}
+
+							panic(err)
+						}
+						err = item.Value(func(val []byte) error {
+							evt := &nostr.Event{}
+							if err := nostr_binary.Unmarshal(val, evt); err != nil {
+								return err
+							}
+
+							// check if this matches the other filters that were not part of the index
+							if extraFilter == nil || extraFilter.Matches(evt) {
+								q.results <- evt
+							}
+
+							return nil
+						})
 						if err != nil {
 							panic(err)
 						}
-
-						evt := &nostr.Event{}
-						if err := nson.Unmarshal(string(val), evt); err != nil {
-							panic(err)
-						}
-
-						// check if this matches the other filters that were not part of the index
-						if extraFilter == nil || extraFilter.Matches(evt) {
-							q.results <- evt
-						}
-
-						// move one back (we'll look into k and v and err in the next iteration)
-						k, idx, iterr = cursor.Get(nil, nil, lmdb.Prev)
 					}
 				}(i, q)
 			}
@@ -128,8 +114,8 @@ func (b *LMDBBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (cha
 			// now it's a good time to schedule this
 			defer func() {
 				close(ch)
-				for _, cclose := range cursorClosers {
-					cclose()
+				for _, itclose := range iteratorClosers {
+					itclose()
 				}
 			}()
 
@@ -148,7 +134,7 @@ func (b *LMDBBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (cha
 
 				// stop when reaching limit
 				emittedEvents++
-				if emittedEvents >= limit {
+				if emittedEvents == limit {
 					break
 				}
 
@@ -203,48 +189,57 @@ func (pq *priorityQueue) Pop() any {
 	return item
 }
 
-func (b *LMDBBackend) prepareQueries(filter nostr.Filter) (
-	dbi lmdb.DBI,
+func prepareQueries(filter nostr.Filter) (
 	queries []query,
 	extraFilter *nostr.Filter,
 	since uint32,
 	prefixLen int,
+	idxOffset int,
 	err error,
 ) {
+	var index byte
+
 	if len(filter.IDs) > 0 {
-		dbi = b.indexId
+		index = indexIdPrefix
 		queries = make([]query, len(filter.IDs))
 		for i, idHex := range filter.IDs {
-			prefix, _ := hex.DecodeString(idHex)
-			if len(prefix) != 32 {
-				return dbi, nil, nil, 0, 0, fmt.Errorf("invalid id '%s'", idHex)
+			prefix := make([]byte, 1+32)
+			prefix[0] = index
+			id, _ := hex.DecodeString(idHex)
+			if len(id) != 32 {
+				return nil, nil, 0, 0, 0, fmt.Errorf("invalid id '%s'", idHex)
 			}
+			copy(prefix[1:], id)
 			queries[i] = query{i: i, prefix: prefix, skipTimestamp: true}
 		}
 	} else if len(filter.Authors) > 0 {
 		if len(filter.Kinds) == 0 {
-			dbi = b.indexPubkey
+			index = indexPubkeyPrefix
 			queries = make([]query, len(filter.Authors))
 			for i, pubkeyHex := range filter.Authors {
-				prefix, _ := hex.DecodeString(pubkeyHex)
-				if len(prefix) != 32 {
-					return dbi, nil, nil, 0, 0, fmt.Errorf("invalid pubkey '%s'", pubkeyHex)
+				pubkey, _ := hex.DecodeString(pubkeyHex)
+				if len(pubkey) != 32 {
+					continue
 				}
+				prefix := make([]byte, 1+32)
+				prefix[0] = index
+				copy(prefix[1:], pubkey)
 				queries[i] = query{i: i, prefix: prefix}
 			}
 		} else {
-			dbi = b.indexPubkeyKind
+			index = indexPubkeyKindPrefix
 			queries = make([]query, len(filter.Authors)*len(filter.Kinds))
 			i := 0
 			for _, pubkeyHex := range filter.Authors {
 				for _, kind := range filter.Kinds {
 					pubkey, _ := hex.DecodeString(pubkeyHex)
 					if len(pubkey) != 32 {
-						return dbi, nil, nil, 0, 0, fmt.Errorf("invalid pubkey '%s'", pubkeyHex)
+						return nil, nil, 0, 0, 0, fmt.Errorf("invalid pubkey '%s'", pubkeyHex)
 					}
-					prefix := make([]byte, 32+2)
-					copy(prefix[:], pubkey)
-					binary.BigEndian.PutUint16(prefix[+32:], uint16(kind))
+					prefix := make([]byte, 1+32+2)
+					prefix[0] = index
+					copy(prefix[1:], pubkey)
+					binary.BigEndian.PutUint16(prefix[1+32:], uint16(kind))
 					queries[i] = query{i: i, prefix: prefix}
 					i++
 				}
@@ -252,7 +247,7 @@ func (b *LMDBBackend) prepareQueries(filter nostr.Filter) (
 		}
 		extraFilter = &nostr.Filter{Tags: filter.Tags}
 	} else if len(filter.Tags) > 0 {
-		dbi = b.indexTag
+		index = indexTagPrefix
 
 		// determine the size of the queries array by inspecting all tags sizes
 		size := 0
@@ -275,29 +270,38 @@ func (b *LMDBBackend) prepareQueries(filter nostr.Filter) (
 					bv = []byte(value)
 					size = len(bv)
 				}
-				prefix := make([]byte, size)
-				copy(prefix[:], bv)
+				prefix := make([]byte, 1+size)
+				prefix[0] = index
+				copy(prefix[1:], bv)
 				queries[i] = query{i: i, prefix: prefix}
 				i++
 			}
 		}
 	} else if len(filter.Kinds) > 0 {
-		dbi = b.indexKind
+		index = indexKindPrefix
 		queries = make([]query, len(filter.Kinds))
 		for i, kind := range filter.Kinds {
-			prefix := make([]byte, 2)
-			binary.BigEndian.PutUint16(prefix[:], uint16(kind))
+			prefix := make([]byte, 1+2)
+			prefix[0] = index
+			binary.BigEndian.PutUint16(prefix[1:], uint16(kind))
 			queries[i] = query{i: i, prefix: prefix}
 		}
 	} else {
-		dbi = b.indexCreatedAt
+		index = indexCreatedAtPrefix
 		queries = make([]query, 1)
-		prefix := make([]byte, 0)
+		prefix := make([]byte, 1)
+		prefix[0] = index
 		queries[0] = query{i: 0, prefix: prefix}
 		extraFilter = nil
 	}
 
 	prefixLen = len(queries[0].prefix)
+
+	if index == indexIdPrefix {
+		idxOffset = prefixLen
+	} else {
+		idxOffset = prefixLen + 4
+	}
 
 	var until uint32 = 4294967295
 	if filter.Until != nil {
@@ -317,5 +321,5 @@ func (b *LMDBBackend) prepareQueries(filter nostr.Filter) (
 		}
 	}
 
-	return dbi, queries, extraFilter, since, prefixLen, nil
+	return queries, extraFilter, since, prefixLen, idxOffset, nil
 }

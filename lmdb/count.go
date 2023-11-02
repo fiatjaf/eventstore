@@ -1,4 +1,4 @@
-package lmdbn
+package lmdb
 
 import (
 	"bytes"
@@ -7,7 +7,7 @@ import (
 
 	"github.com/bmatsuo/lmdb-go/lmdb"
 	"github.com/nbd-wtf/go-nostr"
-	"github.com/nbd-wtf/go-nostr/nson"
+	nostr_binary "github.com/nbd-wtf/go-nostr/binary"
 )
 
 func (b *LMDBBackend) CountEvents(ctx context.Context, filter nostr.Filter) (int64, error) {
@@ -67,7 +67,7 @@ func (b *LMDBBackend) CountEvents(ctx context.Context, filter nostr.Filter) (int
 					count++
 				} else {
 					evt := &nostr.Event{}
-					if err := nson.Unmarshal(string(val), evt); err != nil {
+					if err := nostr_binary.Unmarshal(val, evt); err != nil {
 						return err
 					}
 

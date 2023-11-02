@@ -1,4 +1,4 @@
-package badgern
+package badger
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 
 	"github.com/dgraph-io/badger/v4"
 	"github.com/nbd-wtf/go-nostr"
-	"github.com/nbd-wtf/go-nostr/nson"
+	nostr_binary "github.com/nbd-wtf/go-nostr/binary"
 )
 
 func (b BadgerBackend) CountEvents(ctx context.Context, filter nostr.Filter) (int64, error) {
@@ -58,7 +58,7 @@ func (b BadgerBackend) CountEvents(ctx context.Context, filter nostr.Filter) (in
 				} else {
 					err = item.Value(func(val []byte) error {
 						evt := &nostr.Event{}
-						if err := nson.Unmarshal(string(val), evt); err != nil {
+						if err := nostr_binary.Unmarshal(val, evt); err != nil {
 							return err
 						}
 

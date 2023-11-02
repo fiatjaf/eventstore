@@ -1,4 +1,4 @@
-package lmdbn
+package lmdb
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 
 	"github.com/bmatsuo/lmdb-go/lmdb"
 	"github.com/nbd-wtf/go-nostr"
-	"github.com/nbd-wtf/go-nostr/nson"
+	nostr_binary "github.com/nbd-wtf/go-nostr/binary"
 )
 
 func (b *LMDBBackend) DeleteEvent(ctx context.Context, evt *nostr.Event) error {
@@ -28,7 +28,7 @@ func (b *LMDBBackend) DeleteEvent(ctx context.Context, evt *nostr.Event) error {
 		}
 
 		evt := &nostr.Event{}
-		if err := nson.Unmarshal(string(val), evt); err != nil {
+		if err := nostr_binary.Unmarshal(val, evt); err != nil {
 			return err
 		}
 

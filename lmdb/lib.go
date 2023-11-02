@@ -1,4 +1,4 @@
-package lmdbn
+package lmdb
 
 import (
 	"encoding/binary"

@@ -1,4 +1,4 @@
-package lmdbn
+package lmdb
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 
 	"github.com/bmatsuo/lmdb-go/lmdb"
 	"github.com/nbd-wtf/go-nostr"
-	"github.com/nbd-wtf/go-nostr/nson"
+	nostr_binary "github.com/nbd-wtf/go-nostr/binary"
 )
 
 func (b *LMDBBackend) SaveEvent(ctx context.Context, evt *nostr.Event) error {
@@ -16,14 +16,14 @@ func (b *LMDBBackend) SaveEvent(ctx context.Context, evt *nostr.Event) error {
 	}
 
 	return b.lmdbEnv.Update(func(txn *lmdb.Txn) error {
-		nson, err := nson.Marshal(evt)
+		bin, err := nostr_binary.Marshal(evt)
 		if err != nil {
 			return err
 		}
 
 		idx := b.Serial()
 		// raw event store
-		if err := txn.Put(b.rawEventStore, idx, []byte(nson), 0); err != nil {
+		if err := txn.Put(b.rawEventStore, idx, bin, 0); err != nil {
 			return err
 		}
 

@@ -1,4 +1,4 @@
-package badgern
+package badger
 
 import (
 	"encoding/binary"
