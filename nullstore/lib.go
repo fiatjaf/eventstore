@@ -7,11 +7,11 @@ import (
 	"github.com/nbd-wtf/go-nostr"
 )
 
-var _ eventstore.Store = (*NullStore)(nil)
+var _ eventstore.Store = NullStore{}
 
 type NullStore struct{}
 
-func (b *NullStore) Init() error {
+func (b NullStore) Init() error {
 	return nil
 }
 
