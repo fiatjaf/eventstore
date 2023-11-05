@@ -55,6 +55,8 @@ type ElasticsearchStorage struct {
 	bi esutil.BulkIndexer
 }
 
+func (ess *ElasticsearchStorage) Close() {}
+
 func (ess *ElasticsearchStorage) Init() error {
 	if ess.IndexName == "" {
 		ess.IndexName = "events"

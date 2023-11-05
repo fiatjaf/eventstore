@@ -13,3 +13,7 @@ type MySQLBackend struct {
 	QueryKindsLimit   int
 	QueryTagsLimit    int
 }
+
+func (b *MySQLBackend) Close() {
+	b.DB.Close()
+}

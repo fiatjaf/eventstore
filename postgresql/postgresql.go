@@ -13,3 +13,7 @@ type PostgresBackend struct {
 	QueryKindsLimit   int
 	QueryTagsLimit    int
 }
+
+func (b *PostgresBackend) Close() {
+	b.DB.Close()
+}

@@ -10,3 +10,7 @@ type SQLite3Backend struct {
 	MaxOpenConns int
 	MaxIdleConns int
 }
+
+func (b *SQLite3Backend) Close() {
+	b.DB.Close()
+}
