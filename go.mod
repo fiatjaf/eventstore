@@ -11,7 +11,7 @@ require (
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/lib/pq v1.10.9
 	github.com/mattn/go-sqlite3 v1.14.18
-	github.com/nbd-wtf/go-nostr v0.25.2
+	github.com/nbd-wtf/go-nostr v0.25.3
 	github.com/stretchr/testify v1.8.4
 )
 
