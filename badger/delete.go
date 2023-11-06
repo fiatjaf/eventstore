@@ -25,7 +25,6 @@ func (b *BadgerBackend) DeleteEvent(ctx context.Context, evt *nostr.Event) error
 		it := txn.NewIterator(opts)
 		it.Seek(prefix)
 		if it.ValidForPrefix(prefix) {
-			// the key is the last 32 bytes
 			idx = append(idx, it.Item().Key()[1+32:]...)
 		}
 		it.Close()

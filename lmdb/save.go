@@ -2,9 +2,11 @@ package lmdb
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 
 	"github.com/bmatsuo/lmdb-go/lmdb"
+	"github.com/fiatjaf/eventstore"
 	"github.com/nbd-wtf/go-nostr"
 	nostr_binary "github.com/nbd-wtf/go-nostr/binary"
 )
@@ -16,6 +18,15 @@ func (b *LMDBBackend) SaveEvent(ctx context.Context, evt *nostr.Event) error {
 	}
 
 	return b.lmdbEnv.Update(func(txn *lmdb.Txn) error {
+		// check if we already have this id
+		id, _ := hex.DecodeString(evt.ID)
+		_, err := txn.Get(b.indexId, id)
+		if operr, ok := err.(*lmdb.OpError); ok && operr.Errno != lmdb.NotFound {
+			// we will only proceed if we get a NotFound
+			return eventstore.ErrDupEvent
+		}
+
+		// encode to binary form so we'll save it
 		bin, err := nostr_binary.Marshal(evt)
 		if err != nil {
 			return err
