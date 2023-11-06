@@ -3,6 +3,7 @@ package badger
 import (
 	"context"
 	"encoding/hex"
+	"log"
 
 	"github.com/dgraph-io/badger/v4"
 	"github.com/nbd-wtf/go-nostr"
@@ -70,7 +71,7 @@ func (b *BadgerBackend) DeleteEvent(ctx context.Context, evt *nostr.Event) error
 	// after deleting, run garbage collector
 	if deletionHappened {
 		if err := b.RunValueLogGC(0.8); err != nil {
-			panic(err)
+			log.Println("badger gc errored? " + err.Error())
 		}
 	}
 
