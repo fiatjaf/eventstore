@@ -15,7 +15,7 @@ import (
 func (b SQLite3Backend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch chan *nostr.Event, err error) {
 	ch = make(chan *nostr.Event)
 
-	query, params, err := queryEventsSql(filter, false)
+	query, params, err := b.queryEventsSql(filter, false)
 	if err != nil {
 		close(ch)
 		return nil, err
@@ -47,20 +47,19 @@ func (b SQLite3Backend) QueryEvents(ctx context.Context, filter nostr.Filter) (c
 }
 
 func (b SQLite3Backend) CountEvents(ctx context.Context, filter nostr.Filter) (int64, error) {
-	query, params, err := queryEventsSql(filter, true)
+	query, params, err := b.queryEventsSql(filter, true)
 	if err != nil {
 		return 0, err
 	}
 
 	var count int64
-	err = b.DB.QueryRow(query, params...).Scan(&count)
-	if err != nil && err != sql.ErrNoRows {
+	if err = b.DB.QueryRow(query, params...).Scan(&count); err != nil && err != sql.ErrNoRows {
 		return 0, fmt.Errorf("failed to fetch events using query %q: %w", query, err)
 	}
 	return count, nil
 }
 
-func queryEventsSql(filter nostr.Filter, doCount bool) (string, []any, error) {
+func (b SQLite3Backend) queryEventsSql(filter nostr.Filter, doCount bool) (string, []any, error) {
 	var conditions []string
 	var params []any
 
@@ -88,7 +87,7 @@ func queryEventsSql(filter nostr.Filter, doCount bool) (string, []any, error) {
 	}
 
 	if filter.Authors != nil {
-		if len(filter.Authors) > 500 {
+		if len(filter.Authors) > b.QueryAuthorsLimit {
 			// too many authors, fail everything
 			return "", nil, nil
 		}
@@ -169,8 +168,8 @@ func queryEventsSql(filter nostr.Filter, doCount bool) (string, []any, error) {
 		conditions = append(conditions, "true")
 	}
 
-	if filter.Limit < 1 || filter.Limit > 100 {
-		params = append(params, 100)
+	if filter.Limit < 1 || filter.Limit > b.QueryLimit {
+		params = append(params, b.QueryLimit)
 	} else {
 		params = append(params, filter.Limit)
 	}

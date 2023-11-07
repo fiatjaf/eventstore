@@ -6,9 +6,12 @@ import (
 
 type SQLite3Backend struct {
 	*sqlx.DB
-	DatabaseURL  string
-	MaxOpenConns int
-	MaxIdleConns int
+	DatabaseURL       string
+	QueryLimit        int
+	QueryIDsLimit     int
+	QueryAuthorsLimit int
+	QueryKindsLimit   int
+	QueryTagsLimit    int
 }
 
 func (b *SQLite3Backend) Close() {
