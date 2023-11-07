@@ -70,8 +70,8 @@ func (b *BadgerBackend) DeleteEvent(ctx context.Context, evt *nostr.Event) error
 
 	// after deleting, run garbage collector
 	if deletionHappened {
-		if err := b.RunValueLogGC(0.8); err != nil {
-			log.Println("badger gc errored? " + err.Error())
+		if err := b.RunValueLogGC(0.8); err != nil && err != badger.ErrNoRewrite {
+			log.Println("badger gc errored:" + err.Error())
 		}
 	}
 
