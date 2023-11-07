@@ -3,6 +3,7 @@ package badger
 import (
 	"context"
 	"encoding/binary"
+	"log"
 
 	"github.com/dgraph-io/badger/v4"
 	"github.com/nbd-wtf/go-nostr"
@@ -43,19 +44,19 @@ func (b BadgerBackend) CountEvents(ctx context.Context, filter nostr.Filter) (in
 				idx[0] = rawEventStorePrefix
 				copy(idx[1:], key[idxOffset:])
 
-				// fetch actual event
-				item, err := txn.Get(idx)
-				if err != nil {
-					if err == badger.ErrDiscardedTxn {
-						return err
-					}
-
-					panic(err)
-				}
-
 				if extraFilter == nil {
 					count++
 				} else {
+					// fetch actual event
+					item, err := txn.Get(idx)
+					if err != nil {
+						if err == badger.ErrDiscardedTxn {
+							return err
+						}
+						log.Printf("badger: count (%v) failed to get %d from raw event store: %s\n", q, idx, err)
+						return err
+					}
+
 					err = item.Value(func(val []byte) error {
 						evt := &nostr.Event{}
 						if err := nostr_binary.Unmarshal(val, evt); err != nil {
@@ -70,7 +71,7 @@ func (b BadgerBackend) CountEvents(ctx context.Context, filter nostr.Filter) (in
 						return nil
 					})
 					if err != nil {
-						panic(err)
+						log.Printf("badger: count value read error: %s\n", err)
 					}
 				}
 			}

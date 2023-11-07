@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"log"
 
 	"github.com/dgraph-io/badger/v4"
 	"github.com/nbd-wtf/go-nostr"
@@ -70,7 +71,8 @@ func (b BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch
 							if err == badger.ErrDiscardedTxn {
 								return
 							}
-							panic(err)
+							log.Printf("badger: (%v) failed to get %d from raw event store: %s\n", q, idx, err)
+							return
 						}
 						err = item.Value(func(val []byte) error {
 							evt := &nostr.Event{}
@@ -86,7 +88,7 @@ func (b BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch
 							return nil
 						})
 						if err != nil {
-							panic(err)
+							log.Printf("badger: value read error: %s\n", err)
 						}
 					}
 				}(i, q)
@@ -155,7 +157,7 @@ func (b BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch
 			return nil
 		})
 		if err != nil {
-			panic(err)
+			log.Printf("badger: query txn error: %s\n", err)
 		}
 	}()
 
