@@ -29,7 +29,7 @@ func (w RelayWrapper) Publish(ctx context.Context, evt nostr.Event) (nostr.Statu
 		if err != nil {
 			return nostr.PublishStatusFailed, fmt.Errorf("failed to query before replacing: %w", err)
 		}
-		if previous := <-ch; previous != nil {
+		if previous := <-ch; previous != nil && isOlder(previous, &evt) {
 			if err := w.Store.DeleteEvent(ctx, previous); err != nil {
 				return nostr.PublishStatusFailed, fmt.Errorf("failed to delete event for replacing: %w", err)
 			}
@@ -42,7 +42,7 @@ func (w RelayWrapper) Publish(ctx context.Context, evt nostr.Event) (nostr.Statu
 			if err != nil {
 				return nostr.PublishStatusFailed, fmt.Errorf("failed to query before parameterized replacing: %w", err)
 			}
-			if previous := <-ch; previous != nil {
+			if previous := <-ch; previous != nil && isOlder(previous, &evt) {
 				if err := w.Store.DeleteEvent(ctx, previous); err != nil {
 					return nostr.PublishStatusFailed,
 						fmt.Errorf("failed to delete event for parameterized replacing: %w", err)
@@ -51,7 +51,7 @@ func (w RelayWrapper) Publish(ctx context.Context, evt nostr.Event) (nostr.Statu
 		}
 	}
 
-	if err := w.SaveEvent(ctx, &evt); err != nil {
+	if err := w.SaveEvent(ctx, &evt); err != nil && err != ErrDupEvent {
 		return nostr.PublishStatusFailed, fmt.Errorf("failed to save: %w", err)
 	}
 
