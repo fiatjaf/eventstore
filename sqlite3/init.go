@@ -7,6 +7,14 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
+const (
+	queryLimit        = 100
+	queryIDsLimit     = 500
+	queryAuthorsLimit = 500
+	queryKindsLimit   = 10
+	queryTagsLimit    = 10
+)
+
 var _ eventstore.Store = (*SQLite3Backend)(nil)
 
 var ddls = []string{
@@ -30,9 +38,6 @@ func (b *SQLite3Backend) Init() error {
 		return err
 	}
 
-	db.SetMaxOpenConns(b.MaxOpenConns)
-	db.SetMaxIdleConns(b.MaxIdleConns)
-
 	db.Mapper = reflectx.NewMapperFunc("json", sqlx.NameMapper)
 	b.DB = db
 
@@ -41,6 +46,22 @@ func (b *SQLite3Backend) Init() error {
 		if err != nil {
 			return err
 		}
+	}
+
+	if b.QueryLimit == 0 {
+		b.QueryLimit = queryLimit
+	}
+	if b.QueryIDsLimit == 0 {
+		b.QueryIDsLimit = queryIDsLimit
+	}
+	if b.QueryAuthorsLimit == 0 {
+		b.QueryAuthorsLimit = queryAuthorsLimit
+	}
+	if b.QueryKindsLimit == 0 {
+		b.QueryKindsLimit = queryKindsLimit
+	}
+	if b.QueryTagsLimit == 0 {
+		b.QueryTagsLimit = queryTagsLimit
 	}
 	return nil
 }
