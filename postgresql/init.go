@@ -52,6 +52,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS ididx ON event USING btree (id text_pattern_op
 CREATE INDEX IF NOT EXISTS pubkeyprefix ON event USING btree (pubkey text_pattern_ops);
 CREATE INDEX IF NOT EXISTS timeidx ON event (created_at DESC);
 CREATE INDEX IF NOT EXISTS kindidx ON event (kind);
+CREATE INDEX IF NOT EXISTS kindtimeidx ON event(kind,created_at DESC);
 CREATE INDEX IF NOT EXISTS arbitrarytagvalues ON event USING gin (tagvalues);
     `)
 
