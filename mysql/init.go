@@ -31,6 +31,7 @@ var ddls = []string{
 	`CREATE INDEX pubkeyprefix ON event (pubkey);`,
 	`CREATE INDEX timeidx ON event (created_at DESC);`,
 	`CREATE INDEX kindidx ON event (kind);`,
+	`CREATE INDEX kindtimeidx ON event(kind,created_at DESC);`,
 }
 
 func (b *MySQLBackend) Init() error {
