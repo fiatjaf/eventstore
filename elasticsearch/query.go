@@ -158,7 +158,6 @@ func (ess *ElasticsearchStorage) QueryEvents(ctx context.Context, filter nostr.F
 
 	if res.IsError() {
 		txt, _ := io.ReadAll(res.Body)
-		fmt.Println("oh no", string(txt))
 		return nil, fmt.Errorf("%s", txt)
 	}
 
@@ -248,7 +247,6 @@ func (ess *ElasticsearchStorage) CountEvents(ctx context.Context, filter nostr.F
 
 	if res.IsError() {
 		txt, _ := io.ReadAll(res.Body)
-		fmt.Println("oh no", string(txt))
 		return 0, fmt.Errorf("%s", txt)
 	}
 

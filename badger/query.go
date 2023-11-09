@@ -71,7 +71,8 @@ func (b BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch
 							if err == badger.ErrDiscardedTxn {
 								return
 							}
-							log.Printf("badger: (%v) failed to get %d from raw event store: %s\n", q, idx, err)
+							log.Printf("badger: failed to get %d based on prefix %x from raw event store: %s\n",
+								idx, q.prefix, err)
 							return
 						}
 						err = item.Value(func(val []byte) error {

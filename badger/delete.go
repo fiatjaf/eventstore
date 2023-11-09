@@ -10,6 +10,8 @@ import (
 	nostr_binary "github.com/nbd-wtf/go-nostr/binary"
 )
 
+var serialDelete uint32 = 0
+
 func (b *BadgerBackend) DeleteEvent(ctx context.Context, evt *nostr.Event) error {
 	deletionHappened := false
 
@@ -70,8 +72,11 @@ func (b *BadgerBackend) DeleteEvent(ctx context.Context, evt *nostr.Event) error
 
 	// after deleting, run garbage collector
 	if deletionHappened {
-		if err := b.RunValueLogGC(0.8); err != nil && err != badger.ErrNoRewrite {
-			log.Println("badger gc errored:" + err.Error())
+		serialDelete = (serialDelete + 1) % 256
+		if serialDelete == 0 {
+			if err := b.RunValueLogGC(0.8); err != nil && err != badger.ErrNoRewrite {
+				log.Println("badger gc errored:" + err.Error())
+			}
 		}
 	}
 
