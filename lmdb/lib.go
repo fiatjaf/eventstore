@@ -3,6 +3,7 @@ package lmdb
 import (
 	"encoding/binary"
 	"encoding/hex"
+	"os"
 	"sync/atomic"
 
 	"github.com/bmatsuo/lmdb-go/lmdb"
@@ -48,6 +49,11 @@ func (b *LMDBBackend) Init() error {
 	env.SetMaxDBs(7)
 	env.SetMaxReaders(500)
 	env.SetMapSize(1 << 38) // ~273GB
+
+	// create directory if it doesn't exist and open it
+	if err := os.MkdirAll(b.Path, 0644); err != nil {
+		return err
+	}
 
 	err = env.Open(b.Path, lmdb.NoTLS, 0644)
 	if err != nil {
