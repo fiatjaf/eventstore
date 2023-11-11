@@ -71,8 +71,8 @@ func (b BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch
 							if err == badger.ErrDiscardedTxn {
 								return
 							}
-							log.Printf("badger: failed to get %d based on prefix %x from raw event store: %s\n",
-								idx, q.prefix, err)
+							log.Printf("badger: failed to get %x based on prefix %x, index key %x from raw event store: %s\n",
+								idx, q.prefix, key, err)
 							return
 						}
 						err = item.Value(func(val []byte) error {
@@ -299,10 +299,12 @@ func prepareQueries(filter nostr.Filter) (
 
 	prefixLen = len(queries[0].prefix)
 
+	// the idx -- i.e. the key to the raw event store -- is at the end of
+	// the index key, not in the value, this is the offset for us to read it
 	if index == indexIdPrefix {
 		idxOffset = prefixLen
 	} else {
-		idxOffset = prefixLen + 4
+		idxOffset = prefixLen + 4 // add 4 bytes for the created_at
 	}
 
 	var until uint32 = 4294967295
