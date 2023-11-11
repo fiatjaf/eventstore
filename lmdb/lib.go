@@ -51,7 +51,7 @@ func (b *LMDBBackend) Init() error {
 	env.SetMapSize(1 << 38) // ~273GB
 
 	// create directory if it doesn't exist and open it
-	if err := os.MkdirAll(b.Path, 0644); err != nil {
+	if err := os.MkdirAll(b.Path, 0755); err != nil {
 		return err
 	}
 
