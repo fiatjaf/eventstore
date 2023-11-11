@@ -92,7 +92,7 @@ func (b *LMDBBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (cha
 						}
 
 						evt := &nostr.Event{}
-						if err := nostr_binary.Unmarshal(val, evt); err == nil {
+						if err := nostr_binary.Unmarshal(val, evt); err != nil {
 							panic(err)
 						}
 
