@@ -54,6 +54,10 @@ func (b BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch
 						item := it.Item()
 						key := item.Key()
 
+						if len(key)-4 != idxOffset {
+							continue
+						}
+
 						if !q.skipTimestamp {
 							createdAt := binary.BigEndian.Uint32(key[prefixLen:idxOffset])
 							if createdAt < since {
