@@ -24,6 +24,7 @@ type LMDBBackend struct {
 
 	lmdbEnv *lmdb.Env
 
+	settingsStore   lmdb.DBI
 	rawEventStore   lmdb.DBI
 	indexCreatedAt  lmdb.DBI
 	indexId         lmdb.DBI
@@ -47,7 +48,7 @@ func (b *LMDBBackend) Init() error {
 		return err
 	}
 
-	env.SetMaxDBs(8)
+	env.SetMaxDBs(9)
 	env.SetMaxReaders(500)
 	env.SetMapSize(1 << 38) // ~273GB
 
@@ -64,16 +65,16 @@ func (b *LMDBBackend) Init() error {
 
 	// open each db
 	if err := b.lmdbEnv.Update(func(txn *lmdb.Txn) error {
+		if dbi, err := txn.OpenDBI("settings", lmdb.Create); err != nil {
+			return err
+		} else {
+			b.settingsStore = dbi
+		}
 		if dbi, err := txn.OpenDBI("raw", lmdb.Create); err != nil {
 			return err
 		} else {
 			b.rawEventStore = dbi
-			return nil
 		}
-	}); err != nil {
-		return err
-	}
-	if err := b.lmdbEnv.Update(func(txn *lmdb.Txn) error {
 		if dbi, err := txn.OpenDBI("created_at", lmdb.Create); err != nil {
 			return err
 		} else {
@@ -136,7 +137,7 @@ func (b *LMDBBackend) Init() error {
 		return err
 	}
 
-	return nil
+	return b.runMigrations()
 }
 
 func (b *LMDBBackend) Close() {
