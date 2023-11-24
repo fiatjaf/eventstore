@@ -37,6 +37,8 @@ func (b *LMDBBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (cha
 
 	go func() {
 		err := b.lmdbEnv.View(func(txn *lmdb.Txn) error {
+			txn.RawRead = true
+
 			// actually iterate
 			cursorClosers := make([]func(), len(queries))
 			for i, q := range queries {
