@@ -31,6 +31,7 @@ type LMDBBackend struct {
 	indexPubkey     lmdb.DBI
 	indexPubkeyKind lmdb.DBI
 	indexTag        lmdb.DBI
+	indexTag32      lmdb.DBI
 
 	lastId atomic.Uint32
 }
@@ -46,7 +47,7 @@ func (b *LMDBBackend) Init() error {
 		return err
 	}
 
-	env.SetMaxDBs(7)
+	env.SetMaxDBs(8)
 	env.SetMaxReaders(500)
 	env.SetMapSize(1 << 38) // ~273GB
 
@@ -102,6 +103,11 @@ func (b *LMDBBackend) Init() error {
 			return err
 		} else {
 			b.indexTag = dbi
+		}
+		if dbi, err := txn.OpenDBI("tag32", lmdb.Create); err != nil {
+			return err
+		} else {
+			b.indexTag32 = dbi
 		}
 		return nil
 	}); err != nil {
@@ -193,17 +199,20 @@ func (b *LMDBBackend) getIndexKeysForEvent(evt *nostr.Event) []key {
 		}
 
 		var v []byte
+		var dbi lmdb.DBI
 		if vb, _ := hex.DecodeString(tag[1]); len(vb) == 32 {
 			// store value as bytes
 			v = vb
+			dbi = b.indexTag32
 		} else {
 			v = []byte(tag[1])
+			dbi = b.indexTag
 		}
 
 		k := make([]byte, len(v)+4)
 		copy(k[:], v)
 		binary.BigEndian.PutUint32(k[len(v):], uint32(evt.CreatedAt))
-		keys = append(keys, key{dbi: b.indexTag, key: k})
+		keys = append(keys, key{dbi: dbi, key: k})
 	}
 
 	{

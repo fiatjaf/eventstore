@@ -13,7 +13,7 @@ import (
 func (b *LMDBBackend) CountEvents(ctx context.Context, filter nostr.Filter) (int64, error) {
 	var count int64 = 0
 
-	dbi, queries, extraFilter, since, prefixLen, err := b.prepareQueries(filter)
+	queries, extraFilter, since, prefixLen, err := b.prepareQueries(filter)
 	if err != nil {
 		return 0, err
 	}
@@ -21,7 +21,7 @@ func (b *LMDBBackend) CountEvents(ctx context.Context, filter nostr.Filter) (int
 	err = b.lmdbEnv.View(func(txn *lmdb.Txn) error {
 		// actually iterate
 		for _, q := range queries {
-			cursor, err := txn.OpenCursor(dbi)
+			cursor, err := txn.OpenCursor(q.dbi)
 			if err != nil {
 				continue
 			}
