@@ -70,7 +70,7 @@ func (b *BadgerBackend) DeleteEvent(ctx context.Context, evt *nostr.Event) error
 		return err
 	}
 
-	// after deleting, run garbage collector
+	// after deleting, run garbage collector (sometimes)
 	if deletionHappened {
 		serialDelete = (serialDelete + 1) % 256
 		if serialDelete == 0 {
