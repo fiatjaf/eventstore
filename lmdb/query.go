@@ -77,7 +77,7 @@ func (b *LMDBBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (cha
 						}
 
 						// we already have a k and a v and an err from the cursor setup, so check and use these
-						if iterr != nil || !bytes.HasPrefix(q.prefix, k) {
+						if iterr != nil || !bytes.HasPrefix(k, q.prefix) {
 							return
 						}
 
