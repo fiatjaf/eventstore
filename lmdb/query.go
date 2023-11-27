@@ -256,6 +256,10 @@ func (b *LMDBBackend) prepareQueries(filter nostr.Filter) (
 		for _, values := range filter.Tags {
 			size += len(values)
 		}
+		if size == 0 {
+			return nil, nil, 0, 0, fmt.Errorf("empty tag filters")
+		}
+
 		queries = make([]query, size)
 
 		extraFilter = &nostr.Filter{Kinds: filter.Kinds}
