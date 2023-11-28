@@ -28,4 +28,4 @@ type Store interface {
 
 ## command-line tool
 
-There is an [`eventstore` command-line tool](cli) that can be used to query these databases directly.
+There is an [`eventstore` command-line tool](cmd/eventstore) that can be used to query these databases directly.
