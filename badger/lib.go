@@ -10,6 +10,7 @@ import (
 )
 
 const (
+	dbVersionKey          byte = 255
 	rawEventStorePrefix   byte = 0
 	indexCreatedAtPrefix  byte = 1
 	indexIdPrefix         byte = 2
@@ -17,6 +18,7 @@ const (
 	indexPubkeyPrefix     byte = 4
 	indexPubkeyKindPrefix byte = 5
 	indexTagPrefix        byte = 6
+	indexTag32Prefix      byte = 7
 )
 
 var _ eventstore.Store = (*BadgerBackend)(nil)
@@ -114,15 +116,18 @@ func getIndexKeysForEvent(evt *nostr.Event, idx []byte) [][]byte {
 		}
 
 		var v []byte
+		var indexPrefix byte
 		if vb, _ := hex.DecodeString(tag[1]); len(vb) == 32 {
 			// store value as bytes
 			v = vb
+			indexPrefix = indexTag32Prefix
 		} else {
 			v = []byte(tag[1])
+			indexPrefix = indexTagPrefix
 		}
 
 		k := make([]byte, 1+len(v)+4+4)
-		k[0] = indexTagPrefix
+		k[0] = indexPrefix
 		copy(k[1:], v)
 		binary.BigEndian.PutUint32(k[1+len(v):], uint32(evt.CreatedAt))
 		copy(k[1+len(v)+4:], idx)

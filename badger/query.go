@@ -29,17 +29,19 @@ type queryEvent struct {
 func (b BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (chan *nostr.Event, error) {
 	ch := make(chan *nostr.Event)
 
-	queries, extraFilter, since, prefixLen, idxOffset, err := prepareQueries(filter)
+	queries, extraFilter, since, err := prepareQueries(filter)
 	if err != nil {
 		return nil, err
 	}
 
+	fmt.Println(filter)
+
 	go func() {
 		err := b.View(func(txn *badger.Txn) error {
 			// iterate only through keys and in reverse order
-			opts := badger.DefaultIteratorOptions
-			opts.PrefetchValues = false
-			opts.Reverse = true
+			opts := badger.IteratorOptions{
+				Reverse: true,
+			}
 
 			// actually iterate
 			iteratorClosers := make([]func(), len(queries))
@@ -54,12 +56,11 @@ func (b BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch
 						item := it.Item()
 						key := item.Key()
 
-						if len(key)-4 != idxOffset {
-							continue
-						}
+						idxOffset := len(key) - 4 // this is where the idx actually starts
 
+						// "id" indexes don't contain a timestamp
 						if !q.skipTimestamp {
-							createdAt := binary.BigEndian.Uint32(key[prefixLen:idxOffset])
+							createdAt := binary.BigEndian.Uint32(key[idxOffset-4 : idxOffset])
 							if createdAt < since {
 								break
 							}
@@ -199,8 +200,6 @@ func prepareQueries(filter nostr.Filter) (
 	queries []query,
 	extraFilter *nostr.Filter,
 	since uint32,
-	prefixLen int,
-	idxOffset int,
 	err error,
 ) {
 	var index byte
@@ -213,7 +212,7 @@ func prepareQueries(filter nostr.Filter) (
 			prefix[0] = index
 			id, _ := hex.DecodeString(idHex)
 			if len(id) != 32 {
-				return nil, nil, 0, 0, 0, fmt.Errorf("invalid id '%s'", idHex)
+				return nil, nil, 0, fmt.Errorf("invalid id '%s'", idHex)
 			}
 			copy(prefix[1:], id)
 			queries[i] = query{i: i, prefix: prefix, skipTimestamp: true}
@@ -225,7 +224,7 @@ func prepareQueries(filter nostr.Filter) (
 			for i, pubkeyHex := range filter.Authors {
 				pubkey, _ := hex.DecodeString(pubkeyHex)
 				if len(pubkey) != 32 {
-					return nil, nil, 0, 0, 0, fmt.Errorf("invalid pubkey '%s'", pubkeyHex)
+					return nil, nil, 0, fmt.Errorf("invalid pubkey '%s'", pubkeyHex)
 				}
 				prefix := make([]byte, 1+32)
 				prefix[0] = index
@@ -240,7 +239,7 @@ func prepareQueries(filter nostr.Filter) (
 				for _, kind := range filter.Kinds {
 					pubkey, _ := hex.DecodeString(pubkeyHex)
 					if len(pubkey) != 32 {
-						return nil, nil, 0, 0, 0, fmt.Errorf("invalid pubkey '%s'", pubkeyHex)
+						return nil, nil, 0, fmt.Errorf("invalid pubkey '%s'", pubkeyHex)
 					}
 					prefix := make([]byte, 1+32+2)
 					prefix[0] = index
@@ -253,15 +252,13 @@ func prepareQueries(filter nostr.Filter) (
 		}
 		extraFilter = &nostr.Filter{Tags: filter.Tags}
 	} else if len(filter.Tags) > 0 {
-		index = indexTagPrefix
-
 		// determine the size of the queries array by inspecting all tags sizes
 		size := 0
 		for _, values := range filter.Tags {
 			size += len(values)
 		}
 		if size == 0 {
-			return nil, nil, 0, 0, 0, fmt.Errorf("empty tag filters")
+			return nil, nil, 0, fmt.Errorf("empty tag filters")
 		}
 
 		queries = make([]query, size)
@@ -275,10 +272,12 @@ func prepareQueries(filter nostr.Filter) (
 				if len(bv) == 32 {
 					// hex tag
 					size = 32
+					index = indexTag32Prefix
 				} else {
 					// string tag
 					bv = []byte(value)
 					size = len(bv)
+					index = indexTagPrefix
 				}
 				prefix := make([]byte, 1+size)
 				prefix[0] = index
@@ -305,16 +304,6 @@ func prepareQueries(filter nostr.Filter) (
 		extraFilter = nil
 	}
 
-	prefixLen = len(queries[0].prefix)
-
-	// the idx -- i.e. the key to the raw event store -- is at the end of
-	// the index key, not in the value, this is the offset for us to read it
-	if index == indexIdPrefix {
-		idxOffset = prefixLen
-	} else {
-		idxOffset = prefixLen + 4 // add 4 bytes for the created_at
-	}
-
 	var until uint32 = 4294967295
 	if filter.Until != nil {
 		if fu := uint32(*filter.Until); fu < until {
@@ -333,5 +322,5 @@ func prepareQueries(filter nostr.Filter) (
 		}
 	}
 
-	return queries, extraFilter, since, prefixLen, idxOffset, nil
+	return queries, extraFilter, since, nil
 }

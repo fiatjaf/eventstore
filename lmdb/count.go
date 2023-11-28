@@ -13,7 +13,7 @@ import (
 func (b *LMDBBackend) CountEvents(ctx context.Context, filter nostr.Filter) (int64, error) {
 	var count int64 = 0
 
-	queries, extraFilter, since, prefixLen, err := b.prepareQueries(filter)
+	queries, extraFilter, since, err := b.prepareQueries(filter)
 	if err != nil {
 		return 0, err
 	}
@@ -46,12 +46,13 @@ func (b *LMDBBackend) CountEvents(ctx context.Context, filter nostr.Filter) (int
 
 			for {
 				// we already have a k and a v and an err from the cursor setup, so check and use these
-				if iterr != nil || !bytes.Equal(q.prefix, k[0:prefixLen]) {
+				if iterr != nil || !bytes.HasPrefix(k, q.prefix) {
 					break
 				}
 
+				// "id" indexes don't contain a timestamp
 				if !q.skipTimestamp {
-					createdAt := binary.BigEndian.Uint32(k[prefixLen:])
+					createdAt := binary.BigEndian.Uint32(k[len(k)-4:])
 					if createdAt < since {
 						break
 					}

@@ -17,9 +17,7 @@ func (b *BadgerBackend) SaveEvent(ctx context.Context, evt *nostr.Event) error {
 		prefix := make([]byte, 1+32)
 		prefix[0] = indexIdPrefix
 		copy(prefix[1:], id)
-		opts := badger.DefaultIteratorOptions
-		opts.PrefetchValues = false
-		it := txn.NewIterator(opts)
+		it := txn.NewIterator(badger.IteratorOptions{})
 		defer it.Close()
 		it.Seek(prefix)
 		if it.ValidForPrefix(prefix) {

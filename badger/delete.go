@@ -24,8 +24,9 @@ func (b *BadgerBackend) DeleteEvent(ctx context.Context, evt *nostr.Event) error
 		prefix := make([]byte, 1+32)
 		prefix[0] = indexIdPrefix
 		copy(prefix[1:], id)
-		opts := badger.DefaultIteratorOptions
-		opts.PrefetchValues = false
+		opts := badger.IteratorOptions{
+			PrefetchValues: false,
+		}
 		it := txn.NewIterator(opts)
 		it.Seek(prefix)
 		if it.ValidForPrefix(prefix) {

@@ -30,7 +30,7 @@ type queryEvent struct {
 func (b *LMDBBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (chan *nostr.Event, error) {
 	ch := make(chan *nostr.Event)
 
-	queries, extraFilter, since, prefixLen, err := b.prepareQueries(filter)
+	queries, extraFilter, since, err := b.prepareQueries(filter)
 	if err != nil {
 		return nil, err
 	}
@@ -81,8 +81,9 @@ func (b *LMDBBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (cha
 							return
 						}
 
+						// "id" indexes don't contain a timestamp
 						if !q.skipTimestamp {
-							createdAt := binary.BigEndian.Uint32(k[prefixLen:])
+							createdAt := binary.BigEndian.Uint32(k[len(k)-4:])
 							if createdAt < since {
 								break
 							}
@@ -210,7 +211,6 @@ func (b *LMDBBackend) prepareQueries(filter nostr.Filter) (
 	queries []query,
 	extraFilter *nostr.Filter,
 	since uint32,
-	prefixLen int,
 	err error,
 ) {
 	if len(filter.IDs) > 0 {
@@ -218,7 +218,7 @@ func (b *LMDBBackend) prepareQueries(filter nostr.Filter) (
 		for i, idHex := range filter.IDs {
 			prefix, _ := hex.DecodeString(idHex)
 			if len(prefix) != 32 {
-				return nil, nil, 0, 0, fmt.Errorf("invalid id '%s'", idHex)
+				return nil, nil, 0, fmt.Errorf("invalid id '%s'", idHex)
 			}
 			queries[i] = query{i: i, dbi: b.indexId, prefix: prefix, skipTimestamp: true}
 		}
@@ -228,7 +228,7 @@ func (b *LMDBBackend) prepareQueries(filter nostr.Filter) (
 			for i, pubkeyHex := range filter.Authors {
 				prefix, _ := hex.DecodeString(pubkeyHex)
 				if len(prefix) != 32 {
-					return nil, nil, 0, 0, fmt.Errorf("invalid pubkey '%s'", pubkeyHex)
+					return nil, nil, 0, fmt.Errorf("invalid pubkey '%s'", pubkeyHex)
 				}
 				queries[i] = query{i: i, dbi: b.indexPubkey, prefix: prefix}
 			}
@@ -239,7 +239,7 @@ func (b *LMDBBackend) prepareQueries(filter nostr.Filter) (
 				for _, kind := range filter.Kinds {
 					pubkey, _ := hex.DecodeString(pubkeyHex)
 					if len(pubkey) != 32 {
-						return nil, nil, 0, 0, fmt.Errorf("invalid pubkey '%s'", pubkeyHex)
+						return nil, nil, 0, fmt.Errorf("invalid pubkey '%s'", pubkeyHex)
 					}
 					prefix := make([]byte, 32+2)
 					copy(prefix[:], pubkey)
@@ -257,7 +257,7 @@ func (b *LMDBBackend) prepareQueries(filter nostr.Filter) (
 			size += len(values)
 		}
 		if size == 0 {
-			return nil, nil, 0, 0, fmt.Errorf("empty tag filters")
+			return nil, nil, 0, fmt.Errorf("empty tag filters")
 		}
 
 		queries = make([]query, size)
@@ -299,8 +299,6 @@ func (b *LMDBBackend) prepareQueries(filter nostr.Filter) (
 		extraFilter = nil
 	}
 
-	prefixLen = len(queries[0].prefix)
-
 	var until uint32 = 4294967295
 	if filter.Until != nil {
 		if fu := uint32(*filter.Until); fu < until {
@@ -319,5 +317,5 @@ func (b *LMDBBackend) prepareQueries(filter nostr.Filter) (
 		}
 	}
 
-	return queries, extraFilter, since, prefixLen, nil
+	return queries, extraFilter, since, nil
 }

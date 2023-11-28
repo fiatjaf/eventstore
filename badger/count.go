@@ -13,16 +13,16 @@ import (
 func (b BadgerBackend) CountEvents(ctx context.Context, filter nostr.Filter) (int64, error) {
 	var count int64 = 0
 
-	queries, extraFilter, since, prefixLen, idxOffset, err := prepareQueries(filter)
+	queries, extraFilter, since, err := prepareQueries(filter)
 	if err != nil {
 		return 0, err
 	}
 
 	err = b.View(func(txn *badger.Txn) error {
 		// iterate only through keys and in reverse order
-		opts := badger.DefaultIteratorOptions
-		opts.PrefetchValues = false
-		opts.Reverse = true
+		opts := badger.IteratorOptions{
+			Reverse: true,
+		}
 
 		// actually iterate
 		for _, q := range queries {
@@ -33,8 +33,11 @@ func (b BadgerBackend) CountEvents(ctx context.Context, filter nostr.Filter) (in
 				item := it.Item()
 				key := item.Key()
 
+				idxOffset := len(key) - 4 // this is where the idx actually starts
+
+				// "id" indexes don't contain a timestamp
 				if !q.skipTimestamp {
-					createdAt := binary.BigEndian.Uint32(key[prefixLen:idxOffset])
+					createdAt := binary.BigEndian.Uint32(key[idxOffset-4 : idxOffset])
 					if createdAt < since {
 						break
 					}
