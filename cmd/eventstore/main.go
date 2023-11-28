@@ -23,9 +23,10 @@ var app = &cli.App{
 	UsageText: "eventstore -d ./data/sqlite <query|put|del> ...",
 	Flags: []cli.Flag{
 		&cli.PathFlag{
-			Name:    "store",
-			Aliases: []string{"d"},
-			Usage:   "path to the database file or directory or database connection uri",
+			Name:     "store",
+			Aliases:  []string{"d"},
+			Usage:    "path to the database file or directory or database connection uri",
+			Required: true,
 		},
 		&cli.StringFlag{
 			Name:    "type",
@@ -85,10 +86,12 @@ var app = &cli.App{
 		return db.Init()
 	},
 	Commands: []*cli.Command{
+		queryOrPut,
 		query,
 		put,
 		del,
 	},
+	DefaultCommand: "query-or-put",
 }
 
 func main() {

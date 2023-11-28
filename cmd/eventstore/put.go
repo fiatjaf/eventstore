@@ -1,6 +1,9 @@
 package main
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/mailru/easyjson"
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/urfave/cli/v2"
@@ -22,6 +25,8 @@ var put = &cli.Command{
 				lineProcessingError(c, "failed to save event '%s': %s", line, err)
 				continue
 			}
+
+			fmt.Fprintf(os.Stderr, "saved %s", event.ID)
 		}
 
 		exitIfLineProcessingError(c)
