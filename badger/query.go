@@ -34,8 +34,6 @@ func (b BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch
 		return nil, err
 	}
 
-	fmt.Println(filter)
-
 	go func() {
 		err := b.View(func(txn *badger.Txn) error {
 			// iterate only through keys and in reverse order
