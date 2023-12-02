@@ -265,21 +265,11 @@ func prepareQueries(filter nostr.Filter) (
 		i := 0
 		for _, values := range filter.Tags {
 			for _, value := range values {
-				bv, _ := hex.DecodeString(value)
-				var size int
-				if len(bv) == 32 {
-					// hex tag
-					size = 32
-					index = indexTag32Prefix
-				} else {
-					// string tag
-					bv = []byte(value)
-					size = len(bv)
-					index = indexTagPrefix
-				}
-				prefix := make([]byte, 1+size)
-				prefix[0] = index
-				copy(prefix[1:], bv)
+				// get key prefix (with full length) and offset where to write the last parts
+				k, offset := getTagIndexPrefix(value)
+				// remove the last parts part to get just the prefix we want here
+				prefix := k[0:offset]
+
 				queries[i] = query{i: i, prefix: prefix}
 				i++
 			}
