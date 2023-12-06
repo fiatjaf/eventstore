@@ -3,17 +3,19 @@ module github.com/fiatjaf/eventstore
 go 1.21
 
 require (
+	github.com/PowerDNS/lmdb-go v1.9.1
 	github.com/aquasecurity/esquery v0.2.0
-	github.com/bmatsuo/lmdb-go v1.8.0
 	github.com/dgraph-io/badger/v4 v4.2.0
 	github.com/elastic/go-elasticsearch/v8 v8.10.1
 	github.com/go-sql-driver/mysql v1.7.1
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/lib/pq v1.10.9
+	github.com/mailru/easyjson v0.7.7
 	github.com/mattn/go-sqlite3 v1.14.18
 	github.com/nbd-wtf/go-nostr v0.25.3
 	github.com/stretchr/testify v1.8.4
 	github.com/urfave/cli/v2 v2.25.7
+	golang.org/x/exp v0.0.0-20231006140011-7918f672742d
 )
 
 require (
@@ -41,7 +43,6 @@ require (
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/klauspost/compress v1.17.2 // indirect
 	github.com/kr/text v0.2.0 // indirect
-	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/puzpuzpuz/xsync/v2 v2.5.1 // indirect
@@ -51,7 +52,6 @@ require (
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect
 	go.opencensus.io v0.24.0 // indirect
-	golang.org/x/exp v0.0.0-20231006140011-7918f672742d // indirect
 	golang.org/x/net v0.17.0 // indirect
 	golang.org/x/sys v0.14.0 // indirect
 	google.golang.org/protobuf v1.31.0 // indirect

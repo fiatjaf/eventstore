@@ -5,7 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/bmatsuo/lmdb-go/lmdb"
+	"github.com/PowerDNS/lmdb-go/lmdb"
 	"github.com/fiatjaf/eventstore"
 	"github.com/nbd-wtf/go-nostr"
 	nostr_binary "github.com/nbd-wtf/go-nostr/binary"

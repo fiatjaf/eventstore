@@ -6,7 +6,7 @@ import (
 	"os"
 	"sync/atomic"
 
-	"github.com/bmatsuo/lmdb-go/lmdb"
+	"github.com/PowerDNS/lmdb-go/lmdb"
 	"github.com/fiatjaf/eventstore"
 	"github.com/nbd-wtf/go-nostr"
 )
