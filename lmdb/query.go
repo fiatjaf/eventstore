@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"sync"
 
 	"github.com/PowerDNS/lmdb-go/lmdb"
 	"github.com/nbd-wtf/go-nostr"
@@ -38,12 +39,15 @@ func (b *LMDBBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (cha
 	go func() {
 		err := b.lmdbEnv.View(func(txn *lmdb.Txn) error {
 			txn.RawRead = true
+			wg := sync.WaitGroup{}
+			wg.Add(len(queries))
 
 			// actually iterate
 			cursorClosers := make([]func(), len(queries))
 			for i, q := range queries {
 				go func(i int, q query) {
 					defer close(q.results)
+					defer wg.Done()
 
 					cursor, err := txn.OpenCursor(q.dbi)
 					if err != nil {
@@ -171,6 +175,7 @@ func (b *LMDBBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (cha
 				}
 			}
 
+			wg.Wait()
 			return nil
 		})
 		if err != nil {
