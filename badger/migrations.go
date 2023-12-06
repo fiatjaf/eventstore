@@ -5,6 +5,7 @@ import (
 	"log"
 
 	"github.com/dgraph-io/badger/v4"
+	"github.com/fiatjaf/eventstore"
 )
 
 func (b *BadgerBackend) runMigrations() error {
@@ -74,7 +75,7 @@ func (b *BadgerBackend) runMigrations() error {
 				item := it.Item()
 				key := item.Key()
 
-				if kind, pkb, d := getAddrTagElements(string(key[1 : len(key)-4-4])); len(pkb) == 32 {
+				if kind, pkb, d := eventstore.GetAddrTagElements(string(key[1 : len(key)-4-4])); len(pkb) == 32 {
 					// it's an 'a' tag or alike
 					if err := txn.Delete(key); err != nil {
 						return err

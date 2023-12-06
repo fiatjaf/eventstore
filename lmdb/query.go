@@ -216,20 +216,20 @@ func (b *LMDBBackend) prepareQueries(filter nostr.Filter) (
 	if len(filter.IDs) > 0 {
 		queries = make([]query, len(filter.IDs))
 		for i, idHex := range filter.IDs {
-			prefix, _ := hex.DecodeString(idHex)
-			if len(prefix) != 32 {
+			if len(idHex) != 64 {
 				return nil, nil, 0, fmt.Errorf("invalid id '%s'", idHex)
 			}
+			prefix, _ := hex.DecodeString(idHex[0 : 8*2])
 			queries[i] = query{i: i, dbi: b.indexId, prefix: prefix, skipTimestamp: true}
 		}
 	} else if len(filter.Authors) > 0 {
 		if len(filter.Kinds) == 0 {
 			queries = make([]query, len(filter.Authors))
 			for i, pubkeyHex := range filter.Authors {
-				prefix, _ := hex.DecodeString(pubkeyHex)
-				if len(prefix) != 32 {
+				if len(pubkeyHex) != 64 {
 					return nil, nil, 0, fmt.Errorf("invalid pubkey '%s'", pubkeyHex)
 				}
+				prefix, _ := hex.DecodeString(pubkeyHex[0 : 8*2])
 				queries[i] = query{i: i, dbi: b.indexPubkey, prefix: prefix}
 			}
 		} else {
@@ -237,13 +237,11 @@ func (b *LMDBBackend) prepareQueries(filter nostr.Filter) (
 			i := 0
 			for _, pubkeyHex := range filter.Authors {
 				for _, kind := range filter.Kinds {
-					pubkey, _ := hex.DecodeString(pubkeyHex)
-					if len(pubkey) != 32 {
+					if len(pubkeyHex) != 64 {
 						return nil, nil, 0, fmt.Errorf("invalid pubkey '%s'", pubkeyHex)
 					}
-					prefix := make([]byte, 32+2)
-					copy(prefix[:], pubkey)
-					binary.BigEndian.PutUint16(prefix[+32:], uint16(kind))
+					pubkey, _ := hex.DecodeString(pubkeyHex[0 : 8*2])
+					prefix := binary.BigEndian.AppendUint16(pubkey, uint16(kind))
 					queries[i] = query{i: i, dbi: b.indexPubkeyKind, prefix: prefix}
 					i++
 				}
@@ -266,21 +264,10 @@ func (b *LMDBBackend) prepareQueries(filter nostr.Filter) (
 		i := 0
 		for _, values := range filter.Tags {
 			for _, value := range values {
-				var dbi lmdb.DBI
-				bv, _ := hex.DecodeString(value)
-				var size int
-				if len(bv) == 32 {
-					// hex tag
-					size = 32
-					dbi = b.indexTag32
-				} else {
-					// string tag
-					bv = []byte(value)
-					size = len(bv)
-					dbi = b.indexTag
-				}
-				prefix := make([]byte, size)
-				copy(prefix[:], bv)
+				// get key prefix (with full length) and offset where to write the created_at
+				dbi, k, offset := b.getTagIndexPrefix(value)
+				// remove the last parts part to get just the prefix we want here
+				prefix := k[0:offset]
 				queries[i] = query{i: i, dbi: dbi, prefix: prefix}
 				i++
 			}

@@ -2,13 +2,11 @@ package lmdb
 
 import (
 	"encoding/binary"
-	"encoding/hex"
 	"os"
 	"sync/atomic"
 
 	"github.com/PowerDNS/lmdb-go/lmdb"
 	"github.com/fiatjaf/eventstore"
-	"github.com/nbd-wtf/go-nostr"
 )
 
 const (
@@ -33,6 +31,7 @@ type LMDBBackend struct {
 	indexPubkeyKind lmdb.DBI
 	indexTag        lmdb.DBI
 	indexTag32      lmdb.DBI
+	indexTagAddr    lmdb.DBI
 
 	lastId atomic.Uint32
 }
@@ -48,7 +47,7 @@ func (b *LMDBBackend) Init() error {
 		return err
 	}
 
-	env.SetMaxDBs(9)
+	env.SetMaxDBs(10)
 	env.SetMaxReaders(500)
 	env.SetMapSize(1 << 38) // ~273GB
 
@@ -110,6 +109,11 @@ func (b *LMDBBackend) Init() error {
 		} else {
 			b.indexTag32 = dbi
 		}
+		if dbi, err := txn.OpenDBI("tagaddr", lmdb.Create); err != nil {
+			return err
+		} else {
+			b.indexTagAddr = dbi
+		}
 		return nil
 	}); err != nil {
 		return err
@@ -154,74 +158,4 @@ func (b *LMDBBackend) Serial() []byte {
 type key struct {
 	dbi lmdb.DBI
 	key []byte
-}
-
-func (b *LMDBBackend) getIndexKeysForEvent(evt *nostr.Event) []key {
-	keys := make([]key, 0, 18)
-
-	// indexes
-	{
-		// ~ by id
-		k, _ := hex.DecodeString(evt.ID)
-		keys = append(keys, key{dbi: b.indexId, key: k})
-	}
-
-	{
-		// ~ by pubkey+date
-		pubkey, _ := hex.DecodeString(evt.PubKey)
-		k := make([]byte, 32+4)
-		copy(k[:], pubkey)
-		binary.BigEndian.PutUint32(k[32:], uint32(evt.CreatedAt))
-		keys = append(keys, key{dbi: b.indexPubkey, key: k})
-	}
-
-	{
-		// ~ by kind+date
-		k := make([]byte, 2+4)
-		binary.BigEndian.PutUint16(k[:], uint16(evt.Kind))
-		binary.BigEndian.PutUint32(k[2:], uint32(evt.CreatedAt))
-		keys = append(keys, key{dbi: b.indexKind, key: k})
-	}
-
-	{
-		// ~ by pubkey+kind+date
-		pubkey, _ := hex.DecodeString(evt.PubKey)
-		k := make([]byte, 32+2+4)
-		copy(k[:], pubkey)
-		binary.BigEndian.PutUint16(k[32:], uint16(evt.Kind))
-		binary.BigEndian.PutUint32(k[32+2:], uint32(evt.CreatedAt))
-		keys = append(keys, key{dbi: b.indexPubkeyKind, key: k})
-	}
-
-	// ~ by tagvalue+date
-	for _, tag := range evt.Tags {
-		if len(tag) < 2 || len(tag[0]) != 1 || len(tag[1]) == 0 || len(tag[1]) > 100 {
-			continue
-		}
-
-		var v []byte
-		var dbi lmdb.DBI
-		if vb, _ := hex.DecodeString(tag[1]); len(vb) == 32 {
-			// store value as bytes
-			v = vb
-			dbi = b.indexTag32
-		} else {
-			v = []byte(tag[1])
-			dbi = b.indexTag
-		}
-
-		k := make([]byte, len(v)+4)
-		copy(k[:], v)
-		binary.BigEndian.PutUint32(k[len(v):], uint32(evt.CreatedAt))
-		keys = append(keys, key{dbi: dbi, key: k})
-	}
-
-	{
-		// ~ by date only
-		k := make([]byte, 4)
-		binary.BigEndian.PutUint32(k[:], uint32(evt.CreatedAt))
-		keys = append(keys, key{dbi: b.indexCreatedAt, key: k})
-	}
-
-	return keys
 }
