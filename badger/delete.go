@@ -3,7 +3,6 @@ package badger
 import (
 	"context"
 	"encoding/hex"
-	"fmt"
 	"log"
 
 	"github.com/dgraph-io/badger/v4"
