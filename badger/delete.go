@@ -3,11 +3,11 @@ package badger
 import (
 	"context"
 	"encoding/hex"
+	"fmt"
 	"log"
 
 	"github.com/dgraph-io/badger/v4"
 	"github.com/nbd-wtf/go-nostr"
-	nostr_binary "github.com/nbd-wtf/go-nostr/binary"
 )
 
 var serialDelete uint32 = 0
@@ -39,33 +39,18 @@ func (b *BadgerBackend) DeleteEvent(ctx context.Context, evt *nostr.Event) error
 			return nil
 		}
 
-		// fetch the event
-		item, err := txn.Get(idx)
-		if err != nil {
-			return err
-		}
+		// set this so we'll run the GC later
+		deletionHappened = true
 
-		item.Value(func(val []byte) error {
-			evt := &nostr.Event{}
-			if err := nostr_binary.Unmarshal(val, evt); err != nil {
+		// calculate all index keys we have for this event and delete them
+		for _, k := range getIndexKeysForEvent(evt, idx[1:]) {
+			if err := txn.Delete(k); err != nil {
 				return err
 			}
+		}
 
-			// set this so we'll run the GC later
-			deletionHappened = true
-
-			// calculate all index keys we have for this event and delete them
-			for _, k := range getIndexKeysForEvent(evt, idx[1:]) {
-				if err := txn.Delete(k); err != nil {
-					return err
-				}
-			}
-
-			// delete the raw event
-			return txn.Delete(idx)
-		})
-
-		return nil
+		// delete the raw event
+		return txn.Delete(idx)
 	})
 	if err != nil {
 		return err

@@ -6,7 +6,6 @@ import (
 
 	"github.com/PowerDNS/lmdb-go/lmdb"
 	"github.com/nbd-wtf/go-nostr"
-	nostr_binary "github.com/nbd-wtf/go-nostr/binary"
 )
 
 func (b *LMDBBackend) DeleteEvent(ctx context.Context, evt *nostr.Event) error {
@@ -18,17 +17,6 @@ func (b *LMDBBackend) DeleteEvent(ctx context.Context, evt *nostr.Event) error {
 			return nil
 		}
 		if err != nil {
-			return err
-		}
-
-		// fetch the event
-		val, err := txn.Get(b.rawEventStore, idx)
-		if err != nil {
-			return err
-		}
-
-		evt := &nostr.Event{}
-		if err := nostr_binary.Unmarshal(val, evt); err != nil {
 			return err
 		}
 
