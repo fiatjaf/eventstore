@@ -38,8 +38,9 @@ func (b *LMDBBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (cha
 	go func() {
 		defer close(ch)
 
-		err := b.lmdbEnv.View(func(txn *lmdb.Txn) error {
-			for _, q := range queries {
+		for _, q := range queries {
+			q := q
+			go b.lmdbEnv.View(func(txn *lmdb.Txn) error {
 				txn.RawRead = true
 				defer close(q.results)
 
@@ -111,9 +112,9 @@ func (b *LMDBBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (cha
 					// move one back (we'll look into k and v and err in the next iteration)
 					k, idx, iterr = cursor.Get(nil, nil, lmdb.Prev)
 				}
-			}
-			return nil
-		})
+				return nil
+			})
+		}
 		if err != nil {
 			log.Printf("lmdb: error on cursor iteration: %v\n", err)
 		}
