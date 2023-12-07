@@ -62,6 +62,8 @@ func (b *LMDBBackend) Init() error {
 	}
 	b.lmdbEnv = env
 
+	var multiIndexCreationFlags uint = lmdb.Create | lmdb.DupSort | lmdb.DupFixed
+
 	// open each db
 	if err := b.lmdbEnv.Update(func(txn *lmdb.Txn) error {
 		if dbi, err := txn.OpenDBI("settings", lmdb.Create); err != nil {
@@ -74,7 +76,7 @@ func (b *LMDBBackend) Init() error {
 		} else {
 			b.rawEventStore = dbi
 		}
-		if dbi, err := txn.OpenDBI("created_at", lmdb.Create); err != nil {
+		if dbi, err := txn.OpenDBI("created_at", multiIndexCreationFlags); err != nil {
 			return err
 		} else {
 			b.indexCreatedAt = dbi
@@ -84,32 +86,32 @@ func (b *LMDBBackend) Init() error {
 		} else {
 			b.indexId = dbi
 		}
-		if dbi, err := txn.OpenDBI("kind", lmdb.Create); err != nil {
+		if dbi, err := txn.OpenDBI("kind", multiIndexCreationFlags); err != nil {
 			return err
 		} else {
 			b.indexKind = dbi
 		}
-		if dbi, err := txn.OpenDBI("pubkey", lmdb.Create); err != nil {
+		if dbi, err := txn.OpenDBI("pubkey", multiIndexCreationFlags); err != nil {
 			return err
 		} else {
 			b.indexPubkey = dbi
 		}
-		if dbi, err := txn.OpenDBI("pubkeyKind", lmdb.Create); err != nil {
+		if dbi, err := txn.OpenDBI("pubkeyKind", multiIndexCreationFlags); err != nil {
 			return err
 		} else {
 			b.indexPubkeyKind = dbi
 		}
-		if dbi, err := txn.OpenDBI("tag", lmdb.Create); err != nil {
+		if dbi, err := txn.OpenDBI("tag", multiIndexCreationFlags); err != nil {
 			return err
 		} else {
 			b.indexTag = dbi
 		}
-		if dbi, err := txn.OpenDBI("tag32", lmdb.Create); err != nil {
+		if dbi, err := txn.OpenDBI("tag32", multiIndexCreationFlags); err != nil {
 			return err
 		} else {
 			b.indexTag32 = dbi
 		}
-		if dbi, err := txn.OpenDBI("tagaddr", lmdb.Create); err != nil {
+		if dbi, err := txn.OpenDBI("tagaddr", multiIndexCreationFlags); err != nil {
 			return err
 		} else {
 			b.indexTagAddr = dbi

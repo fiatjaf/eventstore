@@ -3,7 +3,7 @@ module github.com/fiatjaf/eventstore
 go 1.21
 
 require (
-	github.com/PowerDNS/lmdb-go v1.9.1
+	github.com/PowerDNS/lmdb-go v1.9.2
 	github.com/aquasecurity/esquery v0.2.0
 	github.com/dgraph-io/badger/v4 v4.2.0
 	github.com/elastic/go-elasticsearch/v8 v8.10.1
