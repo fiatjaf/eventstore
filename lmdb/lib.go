@@ -48,7 +48,7 @@ func (b *LMDBBackend) Init() error {
 	}
 
 	env.SetMaxDBs(10)
-	env.SetMaxReaders(500)
+	env.SetMaxReaders(1000)
 	env.SetMapSize(1 << 38) // ~273GB
 
 	// create directory if it doesn't exist and open it
