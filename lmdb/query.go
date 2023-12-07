@@ -7,7 +7,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
-	"sync"
+	"log"
 
 	"github.com/PowerDNS/lmdb-go/lmdb"
 	"github.com/nbd-wtf/go-nostr"
@@ -29,157 +29,145 @@ type queryEvent struct {
 }
 
 func (b *LMDBBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (chan *nostr.Event, error) {
-	ch := make(chan *nostr.Event)
-
 	queries, extraFilter, since, err := b.prepareQueries(filter)
 	if err != nil {
 		return nil, err
 	}
 
+	ch := make(chan *nostr.Event)
 	go func() {
+		defer close(ch)
+
 		err := b.lmdbEnv.View(func(txn *lmdb.Txn) error {
-			txn.RawRead = true
-			wg := sync.WaitGroup{}
-			wg.Add(len(queries))
-
-			// actually iterate
-			cursorClosers := make([]func(), len(queries))
-			for i, q := range queries {
-				go func(i int, q query) {
-					defer close(q.results)
-					defer wg.Done()
-
-					cursor, err := txn.OpenCursor(q.dbi)
-					if err != nil {
-						return
-					}
-					cursorClosers[i] = cursor.Close
-
-					var k []byte
-					var idx []byte
-					var iterr error
-
-					if _, _, errsr := cursor.Get(q.startingPoint, nil, lmdb.SetRange); errsr != nil {
-						if operr, ok := errsr.(*lmdb.OpError); !ok || operr.Errno != lmdb.NotFound {
-							// in this case it's really an error
-							panic(err)
-						} else {
-							// we're at the end and we just want notes before this,
-							// so we just need to set the cursor the last key, this is not a real error
-							k, idx, iterr = cursor.Get(nil, nil, lmdb.Last)
-						}
-					} else {
-						// move one back as the first step
-						k, idx, iterr = cursor.Get(nil, nil, lmdb.Prev)
-					}
-
-					for {
-						select {
-						case <-ctx.Done():
-							break
-						default:
-						}
-
-						// we already have a k and a v and an err from the cursor setup, so check and use these
-						if iterr != nil || !bytes.HasPrefix(k, q.prefix) {
-							return
-						}
-
-						// "id" indexes don't contain a timestamp
-						if !q.skipTimestamp {
-							createdAt := binary.BigEndian.Uint32(k[len(k)-4:])
-							if createdAt < since {
-								break
-							}
-						}
-
-						// fetch actual event
-						val, err := txn.Get(b.rawEventStore, idx)
-						if err != nil {
-							panic(err)
-						}
-
-						evt := &nostr.Event{}
-						if err := nostr_binary.Unmarshal(val, evt); err != nil {
-							panic(err)
-						}
-
-						// check if this matches the other filters that were not part of the index
-						if extraFilter == nil || extraFilter.Matches(evt) {
-							q.results <- evt
-						}
-
-						// move one back (we'll look into k and v and err in the next iteration)
-						k, idx, iterr = cursor.Get(nil, nil, lmdb.Prev)
-					}
-				}(i, q)
-			}
-
-			// max number of events we'll return
-			limit := b.MaxLimit
-			if filter.Limit > 0 && filter.Limit < limit {
-				limit = filter.Limit
-			}
-
-			// receive results and ensure we only return the most recent ones always
-			emittedEvents := 0
-
-			// first pass
-			emitQueue := make(priorityQueue, 0, len(queries)+limit)
 			for _, q := range queries {
-				evt, ok := <-q.results
-				if ok {
-					emitQueue = append(emitQueue, &queryEvent{Event: evt, query: q.i})
+				txn.RawRead = true
+				defer close(q.results)
+
+				cursor, err := txn.OpenCursor(q.dbi)
+				if err != nil {
+					return err
 				}
-			}
+				defer cursor.Close()
 
-			// now it's a good time to schedule this
-			defer func() {
-				close(ch)
-				for _, cclose := range cursorClosers {
-					cclose()
-				}
-			}()
+				var k []byte
+				var idx []byte
+				var iterr error
 
-			// queue may be empty here if we have literally nothing
-			if len(emitQueue) == 0 {
-				return nil
-			}
-
-			heap.Init(&emitQueue)
-
-			// iterate until we've emitted all events required
-			for {
-				// emit latest event in queue
-				latest := emitQueue[0]
-				ch <- latest.Event
-
-				// stop when reaching limit
-				emittedEvents++
-				if emittedEvents >= limit {
-					break
-				}
-
-				// fetch a new one from query results and replace the previous one with it
-				if evt, ok := <-queries[latest.query].results; ok {
-					emitQueue[0].Event = evt
-					heap.Fix(&emitQueue, 0)
-				} else {
-					// if this query has no more events we just remove this and proceed normally
-					heap.Remove(&emitQueue, 0)
-
-					// check if the list is empty and end
-					if len(emitQueue) == 0 {
-						break
+				if _, _, errsr := cursor.Get(q.startingPoint, nil, lmdb.SetRange); errsr != nil {
+					if operr, ok := errsr.(*lmdb.OpError); !ok || operr.Errno != lmdb.NotFound {
+						// in this case it's really an error
+						panic(err)
+					} else {
+						// we're at the end and we just want notes before this,
+						// so we just need to set the cursor the last key, this is not a real error
+						k, idx, iterr = cursor.Get(nil, nil, lmdb.Last)
 					}
+				} else {
+					// move one back as the first step
+					k, idx, iterr = cursor.Get(nil, nil, lmdb.Prev)
+				}
+
+				for {
+					select {
+					case <-ctx.Done():
+						break
+					default:
+					}
+
+					// we already have a k and a v and an err from the cursor setup, so check and use these
+					if iterr != nil || !bytes.HasPrefix(k, q.prefix) {
+						// either iteration has errored or we reached the end of this prefix
+						break // stop this cursor and move to the next one
+					}
+
+					// "id" indexes don't contain a timestamp
+					if !q.skipTimestamp {
+						createdAt := binary.BigEndian.Uint32(k[len(k)-4:])
+						if createdAt < since {
+							break
+						}
+					}
+
+					// fetch actual event
+					val, err := txn.Get(b.rawEventStore, idx)
+					if err != nil {
+						log.Printf(
+							"lmdb: failed to get %x based on prefix %x, index key %x from raw event store: %s\n",
+							idx, q.prefix, k, err)
+						continue
+					}
+
+					evt := &nostr.Event{}
+					if err := nostr_binary.Unmarshal(val, evt); err != nil {
+						log.Printf("lmdb: value read error: %s\n", err)
+						continue
+					}
+
+					// check if this matches the other filters that were not part of the index
+					if extraFilter == nil || extraFilter.Matches(evt) {
+						q.results <- evt
+					}
+
+					// move one back (we'll look into k and v and err in the next iteration)
+					k, idx, iterr = cursor.Get(nil, nil, lmdb.Prev)
 				}
 			}
-
-			wg.Wait()
 			return nil
 		})
 		if err != nil {
-			panic(err)
+			log.Printf("lmdb: error on cursor iteration: %v\n", err)
+		}
+
+		// max number of events we'll return
+		limit := b.MaxLimit
+		if filter.Limit > 0 && filter.Limit < limit {
+			limit = filter.Limit
+		}
+
+		// receive results and ensure we only return the most recent ones always
+		emittedEvents := 0
+
+		// first pass
+		emitQueue := make(priorityQueue, 0, len(queries)+limit)
+		for _, q := range queries {
+			evt, ok := <-q.results
+			if ok {
+				emitQueue = append(emitQueue, &queryEvent{Event: evt, query: q.i})
+			}
+		}
+
+		// queue may be empty here if we have literally nothing
+		if len(emitQueue) == 0 {
+			return
+		}
+
+		heap.Init(&emitQueue)
+
+		// iterate until we've emitted all events required
+		for {
+			// emit latest event in queue
+			latest := emitQueue[0]
+			ch <- latest.Event
+
+			// stop when reaching limit
+			emittedEvents++
+			if emittedEvents >= limit {
+				break
+			}
+
+			// fetch a new one from query results and replace the previous one with it
+			if evt, ok := <-queries[latest.query].results; ok {
+				emitQueue[0].Event = evt
+				heap.Fix(&emitQueue, 0)
+			} else {
+				// if this query has no more events we just remove this and proceed normally
+				heap.Remove(&emitQueue, 0)
+
+				// check if the list is empty and end
+				if len(emitQueue) == 0 {
+					break
+				}
+			}
 		}
 	}()
 
