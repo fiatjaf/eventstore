@@ -69,12 +69,6 @@ func (b *LMDBBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (cha
 				}
 
 				for {
-					select {
-					case <-ctx.Done():
-						break
-					default:
-					}
-
 					// we already have a k and a v and an err from the cursor setup, so check and use these
 					if iterr != nil || !bytes.HasPrefix(k, q.prefix) {
 						// either iteration has errored or we reached the end of this prefix
@@ -104,9 +98,13 @@ func (b *LMDBBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (cha
 						continue
 					}
 
-					// check if this matches the other filters that were not part of the index
+					// check if this matches the other filters that were not part of the index before yielding
 					if extraFilter == nil || extraFilter.Matches(evt) {
-						q.results <- evt
+						select {
+						case q.results <- evt:
+						case <-ctx.Done():
+							break
+						}
 					}
 
 					// move one back (we'll look into k and v and err in the next iteration)
