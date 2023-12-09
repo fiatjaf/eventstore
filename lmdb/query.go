@@ -89,13 +89,13 @@ func (b *LMDBBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (cha
 						log.Printf(
 							"lmdb: failed to get %x based on prefix %x, index key %x from raw event store: %s\n",
 							idx, q.prefix, k, err)
-						continue
+						break
 					}
 
 					evt := &nostr.Event{}
 					if err := nostr_binary.Unmarshal(val, evt); err != nil {
 						log.Printf("lmdb: value read error: %s\n", err)
-						continue
+						break
 					}
 
 					// check if this matches the other filters that were not part of the index before yielding
