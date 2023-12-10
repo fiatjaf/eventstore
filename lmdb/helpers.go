@@ -3,7 +3,6 @@ package lmdb
 import (
 	"encoding/binary"
 	"encoding/hex"
-	"strings"
 
 	"github.com/PowerDNS/lmdb-go/lmdb"
 	"github.com/fiatjaf/eventstore"
@@ -79,7 +78,7 @@ func (b *LMDBBackend) getIndexKeysForEvent(evt *nostr.Event) []key {
 	}
 
 	// ~ by tagvalue+date
-	slices.SortFunc(evt.Tags, func(a, b nostr.Tag) int { return strings.Compare(a[1], b[1]) })
+	slices.SortFunc(evt.Tags, eventstore.TagSorter)
 	for i, tag := range evt.Tags {
 		if len(tag) < 2 || len(tag[0]) != 1 || len(tag[1]) == 0 || len(tag[1]) > 100 {
 			// not indexable

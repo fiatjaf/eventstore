@@ -1,6 +1,8 @@
 package eventstore
 
-import "github.com/nbd-wtf/go-nostr"
+import (
+	"github.com/nbd-wtf/go-nostr"
+)
 
 func isOlder(previous, next *nostr.Event) bool {
 	return previous.CreatedAt < next.CreatedAt ||
