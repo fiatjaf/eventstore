@@ -19,17 +19,17 @@ func (b *BadgerBackend) DeleteEvent(ctx context.Context, evt *nostr.Event) error
 		idx[0] = rawEventStorePrefix
 
 		// query event by id to get its idx
-		id, _ := hex.DecodeString(evt.ID)
-		prefix := make([]byte, 1+32)
+		idPrefix8, _ := hex.DecodeString(evt.ID[0 : 8*2])
+		prefix := make([]byte, 1+8)
 		prefix[0] = indexIdPrefix
-		copy(prefix[1:], id)
+		copy(prefix[1:], idPrefix8)
 		opts := badger.IteratorOptions{
 			PrefetchValues: false,
 		}
 		it := txn.NewIterator(opts)
 		it.Seek(prefix)
 		if it.ValidForPrefix(prefix) {
-			idx = append(idx, it.Item().Key()[1+32:]...)
+			idx = append(idx, it.Item().Key()[1+8:]...)
 		}
 		it.Close()
 

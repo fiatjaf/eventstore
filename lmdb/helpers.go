@@ -46,15 +46,16 @@ func (b *LMDBBackend) getIndexKeysForEvent(evt *nostr.Event) []key {
 	// indexes
 	{
 		// ~ by id
-		k, _ := hex.DecodeString(evt.ID)
+		idPrefix8, _ := hex.DecodeString(evt.ID[0 : 8*2])
+		k := idPrefix8
 		keys = append(keys, key{dbi: b.indexId, key: k})
 	}
 
 	{
 		// ~ by pubkey+date
-		pubkey, _ := hex.DecodeString(evt.PubKey)
+		pubkeyPrefix8, _ := hex.DecodeString(evt.PubKey[0 : 8*2])
 		k := make([]byte, 8+4)
-		copy(k[:], pubkey[0:8])
+		copy(k[:], pubkeyPrefix8)
 		binary.BigEndian.PutUint32(k[8:], uint32(evt.CreatedAt))
 		keys = append(keys, key{dbi: b.indexPubkey, key: k})
 	}
@@ -69,9 +70,9 @@ func (b *LMDBBackend) getIndexKeysForEvent(evt *nostr.Event) []key {
 
 	{
 		// ~ by pubkey+kind+date
-		pubkey, _ := hex.DecodeString(evt.PubKey)
+		pubkeyPrefix8, _ := hex.DecodeString(evt.PubKey[0 : 8*2])
 		k := make([]byte, 8+2+4)
-		copy(k[:], pubkey[0:8])
+		copy(k[:], pubkeyPrefix8)
 		binary.BigEndian.PutUint16(k[8:], uint16(evt.Kind))
 		binary.BigEndian.PutUint32(k[8+2:], uint32(evt.CreatedAt))
 		keys = append(keys, key{dbi: b.indexPubkeyKind, key: k})

@@ -10,8 +10,8 @@ import (
 
 func (b *LMDBBackend) DeleteEvent(ctx context.Context, evt *nostr.Event) error {
 	err := b.lmdbEnv.Update(func(txn *lmdb.Txn) error {
-		id, _ := hex.DecodeString(evt.ID)
-		idx, err := txn.Get(b.indexId, id)
+		idPrefix8, _ := hex.DecodeString(evt.ID[0 : 8*2])
+		idx, err := txn.Get(b.indexId, idPrefix8)
 		if operr, ok := err.(*lmdb.OpError); ok && operr.Errno == lmdb.NotFound {
 			// we already do not have this
 			return nil

@@ -206,13 +206,13 @@ func prepareQueries(filter nostr.Filter) (
 		index = indexIdPrefix
 		queries = make([]query, len(filter.IDs))
 		for i, idHex := range filter.IDs {
-			prefix := make([]byte, 1+32)
+			prefix := make([]byte, 1+8)
 			prefix[0] = index
-			id, _ := hex.DecodeString(idHex)
-			if len(id) != 32 {
+			if len(idHex) != 64 {
 				return nil, nil, 0, fmt.Errorf("invalid id '%s'", idHex)
 			}
-			copy(prefix[1:], id)
+			idPrefix8, _ := hex.DecodeString(idHex[0 : 8*2])
+			copy(prefix[1:], idPrefix8)
 			queries[i] = query{i: i, prefix: prefix, skipTimestamp: true}
 		}
 	} else if len(filter.Authors) > 0 {
@@ -220,13 +220,13 @@ func prepareQueries(filter nostr.Filter) (
 			index = indexPubkeyPrefix
 			queries = make([]query, len(filter.Authors))
 			for i, pubkeyHex := range filter.Authors {
-				pubkey, _ := hex.DecodeString(pubkeyHex)
-				if len(pubkey) != 32 {
+				if len(pubkeyHex) != 64 {
 					return nil, nil, 0, fmt.Errorf("invalid pubkey '%s'", pubkeyHex)
 				}
-				prefix := make([]byte, 1+32)
+				pubkeyPrefix8, _ := hex.DecodeString(pubkeyHex[0 : 8*2])
+				prefix := make([]byte, 1+8)
 				prefix[0] = index
-				copy(prefix[1:], pubkey)
+				copy(prefix[1:], pubkeyPrefix8)
 				queries[i] = query{i: i, prefix: prefix}
 			}
 		} else {
@@ -235,14 +235,14 @@ func prepareQueries(filter nostr.Filter) (
 			i := 0
 			for _, pubkeyHex := range filter.Authors {
 				for _, kind := range filter.Kinds {
-					pubkey, _ := hex.DecodeString(pubkeyHex)
-					if len(pubkey) != 32 {
+					if len(pubkeyHex) != 64 {
 						return nil, nil, 0, fmt.Errorf("invalid pubkey '%s'", pubkeyHex)
 					}
-					prefix := make([]byte, 1+32+2)
+					pubkeyPrefix8, _ := hex.DecodeString(pubkeyHex[0 : 8*2])
+					prefix := make([]byte, 1+8+2)
 					prefix[0] = index
-					copy(prefix[1:], pubkey)
-					binary.BigEndian.PutUint16(prefix[1+32:], uint16(kind))
+					copy(prefix[1:], pubkeyPrefix8)
+					binary.BigEndian.PutUint16(prefix[1+8:], uint16(kind))
 					queries[i] = query{i: i, prefix: prefix}
 					i++
 				}

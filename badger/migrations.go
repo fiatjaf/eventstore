@@ -2,10 +2,9 @@ package badger
 
 import (
 	"encoding/binary"
-	"log"
+	"fmt"
 
 	"github.com/dgraph-io/badger/v4"
-	"github.com/fiatjaf/eventstore"
 )
 
 func (b *BadgerBackend) runMigrations() error {
@@ -27,80 +26,32 @@ func (b *BadgerBackend) runMigrations() error {
 		// do the migrations in increasing steps (there is no rollback)
 		//
 
-		if version < 1 {
-			log.Println("migration 1: move all keys from indexTag to indexTag32 if they are 32-bytes")
-			prefix := []byte{indexTagPrefix}
-			it := txn.NewIterator(badger.IteratorOptions{
-				PrefetchValues: true,
-				PrefetchSize:   100,
-				Prefix:         prefix,
-			})
-			defer it.Close()
-
-			for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
-				item := it.Item()
-				key := item.Key()
-
-				if len(key) == 1+32+4+4 {
-					// it's 32 bytes
-					log.Printf("moving key %x", key)
-					if err := txn.Delete(key); err != nil {
-						return err
-					}
-					key[0] = indexTag32Prefix
-					if err := txn.Set(key, nil); err != nil {
-						return err
-					}
-				}
-			}
-
-			// bump version
-			version = 1
-			if err := b.bumpVersion(txn, 1); err != nil {
-				return err
-			}
-		}
-
-		if version < 2 {
-			log.Println("migration 2: move all keys from indexTag to indexTagAddr if they are like 'a' tags")
-			prefix := []byte{indexTagPrefix}
-			it := txn.NewIterator(badger.IteratorOptions{
-				PrefetchValues: true,
-				PrefetchSize:   100,
-				Prefix:         prefix,
-			})
-			defer it.Close()
-
-			for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
-				item := it.Item()
-				key := item.Key()
-
-				if kind, pkb, d := eventstore.GetAddrTagElements(string(key[1 : len(key)-4-4])); len(pkb) == 32 {
-					// it's an 'a' tag or alike
-					if err := txn.Delete(key); err != nil {
-						return err
-					}
-					k := make([]byte, 1+2+32+len(d)+4+4)
-					k[0] = indexTagAddrPrefix
-					binary.BigEndian.PutUint16(k[1:], kind)
-					copy(k[1+2:], pkb)
-					copy(k[1+2+32:], d)
-					copy(k[1+2+32+len(d):], key[len(key)-4-4:])
-					if err := txn.Set(k, nil); err != nil {
-						return err
-					}
-					log.Printf("moved key %x to %x", key, k)
-				}
-			}
-
-			// bump version
-			version = 2
-			if err := b.bumpVersion(txn, 2); err != nil {
-				return err
-			}
-		}
-
+		// the 3 first migrations go to trash because on version 3 we need to export and import all the data anyway
 		if version < 3 {
+			// if there is any data in the relay we will stop and notify the user,
+			// otherwise we just set version to 3 and proceed
+			prefix := []byte{indexIdPrefix}
+			it := txn.NewIterator(badger.IteratorOptions{
+				PrefetchValues: true,
+				PrefetchSize:   100,
+				Prefix:         prefix,
+			})
+			defer it.Close()
+
+			hasAnyEntries := false
+			for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
+				hasAnyEntries = true
+				break
+			}
+
+			if hasAnyEntries {
+				return fmt.Errorf("your database is at version %d, but in order to migrate up to version 3 you must manually export all the events and then import again: run an old version of this software, export the data, then delete the database files, run the new version, import the data back in.", version)
+			}
+
+			b.bumpVersion(txn, 3)
+		}
+
+		if version < 4 {
 			// ...
 		}
 

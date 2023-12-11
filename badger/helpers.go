@@ -15,18 +15,18 @@ func getTagIndexPrefix(tagValue string) ([]byte, int) {
 
 	if kind, pkb, d := eventstore.GetAddrTagElements(tagValue); len(pkb) == 32 {
 		// store value in the new special "a" tag index
-		k = make([]byte, 1+2+32+len(d)+4+4)
+		k = make([]byte, 1+2+8+len(d)+4+4)
 		k[0] = indexTagAddrPrefix
 		binary.BigEndian.PutUint16(k[1:], kind)
-		copy(k[1+2:], pkb)
-		copy(k[1+2+32:], d)
-		offset = 1 + 2 + 32 + len(d)
+		copy(k[1+2:], pkb[0:8])
+		copy(k[1+2+8:], d)
+		offset = 1 + 2 + 8 + len(d)
 	} else if vb, _ := hex.DecodeString(tagValue); len(vb) == 32 {
 		// store value as bytes
-		k = make([]byte, 1+32+4+4)
+		k = make([]byte, 1+8+4+4)
 		k[0] = indexTag32Prefix
-		copy(k[1:], vb)
-		offset = 1 + 32
+		copy(k[1:], vb[0:8])
+		offset = 1 + 8
 	} else {
 		// store whatever as utf-8
 		k = make([]byte, 1+len(tagValue)+4+4)
@@ -44,22 +44,22 @@ func getIndexKeysForEvent(evt *nostr.Event, idx []byte) [][]byte {
 	// indexes
 	{
 		// ~ by id
-		id, _ := hex.DecodeString(evt.ID)
-		k := make([]byte, 1+32+4)
+		idPrefix8, _ := hex.DecodeString(evt.ID[0 : 8*2])
+		k := make([]byte, 1+8+4)
 		k[0] = indexIdPrefix
-		copy(k[1:], id)
-		copy(k[1+32:], idx)
+		copy(k[1:], idPrefix8)
+		copy(k[1+8:], idx)
 		keys = append(keys, k)
 	}
 
 	{
 		// ~ by pubkey+date
-		pubkey, _ := hex.DecodeString(evt.PubKey)
-		k := make([]byte, 1+32+4+4)
+		pubkeyPrefix8, _ := hex.DecodeString(evt.PubKey[0 : 8*2])
+		k := make([]byte, 1+8+4+4)
 		k[0] = indexPubkeyPrefix
-		copy(k[1:], pubkey)
-		binary.BigEndian.PutUint32(k[1+32:], uint32(evt.CreatedAt))
-		copy(k[1+32+4:], idx)
+		copy(k[1:], pubkeyPrefix8)
+		binary.BigEndian.PutUint32(k[1+8:], uint32(evt.CreatedAt))
+		copy(k[1+8+4:], idx)
 		keys = append(keys, k)
 	}
 
@@ -75,13 +75,13 @@ func getIndexKeysForEvent(evt *nostr.Event, idx []byte) [][]byte {
 
 	{
 		// ~ by pubkey+kind+date
-		pubkey, _ := hex.DecodeString(evt.PubKey)
-		k := make([]byte, 1+32+2+4+4)
+		pubkeyPrefix8, _ := hex.DecodeString(evt.PubKey[0 : 8*2])
+		k := make([]byte, 1+8+2+4+4)
 		k[0] = indexPubkeyKindPrefix
-		copy(k[1:], pubkey)
-		binary.BigEndian.PutUint16(k[1+32:], uint16(evt.Kind))
-		binary.BigEndian.PutUint32(k[1+32+2:], uint32(evt.CreatedAt))
-		copy(k[1+32+2+4:], idx)
+		copy(k[1:], pubkeyPrefix8)
+		binary.BigEndian.PutUint16(k[1+8:], uint16(evt.Kind))
+		binary.BigEndian.PutUint32(k[1+8+2:], uint32(evt.CreatedAt))
+		copy(k[1+8+2+4:], idx)
 		keys = append(keys, k)
 	}
 

@@ -14,7 +14,7 @@ func (b *BadgerBackend) SaveEvent(ctx context.Context, evt *nostr.Event) error {
 	return b.Update(func(txn *badger.Txn) error {
 		// query event by id to ensure we don't save duplicates
 		id, _ := hex.DecodeString(evt.ID)
-		prefix := make([]byte, 1+32)
+		prefix := make([]byte, 1+8)
 		prefix[0] = indexIdPrefix
 		copy(prefix[1:], id)
 		it := txn.NewIterator(badger.IteratorOptions{})
