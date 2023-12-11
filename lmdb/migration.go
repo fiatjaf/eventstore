@@ -50,7 +50,7 @@ func (b *LMDBBackend) runMigrations() error {
 				return fmt.Errorf("your database is at version %d, but in order to migrate up to version 4 you must manually export all the events and then import again: run an old version of this software, export the data, then delete the database files, run the new version, import the data back in.", version)
 			}
 
-			b.bumpVersion(txn, 3)
+			b.bumpVersion(txn, 4)
 		}
 
 		if version < 5 {
