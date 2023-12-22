@@ -12,7 +12,7 @@ require (
 	github.com/lib/pq v1.10.9
 	github.com/mailru/easyjson v0.7.7
 	github.com/mattn/go-sqlite3 v1.14.18
-	github.com/nbd-wtf/go-nostr v0.27.1
+	github.com/nbd-wtf/go-nostr v0.27.3
 	github.com/stretchr/testify v1.8.4
 	github.com/urfave/cli/v2 v2.25.7
 	golang.org/x/exp v0.0.0-20231006140011-7918f672742d
