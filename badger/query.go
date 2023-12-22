@@ -78,9 +78,10 @@ func (b BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch
 								idx, q.prefix, key, err)
 							return
 						}
-						err = item.Value(func(val []byte) error {
+						item.Value(func(val []byte) error {
 							evt := &nostr.Event{}
 							if err := nostr_binary.Unmarshal(val, evt); err != nil {
+								log.Printf("badger: value read error (id %x): %s\n", val[0:32], err)
 								return err
 							}
 
@@ -91,9 +92,6 @@ func (b BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch
 
 							return nil
 						})
-						if err != nil {
-							log.Printf("badger: value read error: %s\n", err)
-						}
 					}
 				}(i, q)
 			}
