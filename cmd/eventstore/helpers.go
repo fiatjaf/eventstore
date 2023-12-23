@@ -3,13 +3,12 @@ package main
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"fmt"
 	"io"
 	"os"
 	"strings"
 
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 )
 
 const (
@@ -68,6 +67,22 @@ func isPiped() bool {
 	return stat.Mode()&os.ModeCharDevice == 0
 }
 
+func getStdinLinesOrFirstArgument(c *cli.Command) chan string {
+	// try the first argument
+	target := c.Args().First()
+	if target != "" {
+		single := make(chan string, 1)
+		single <- target
+		close(single)
+		return single
+	}
+
+	// try the stdin
+	multi := make(chan string)
+	writeStdinLinesOrNothing(multi)
+	return multi
+}
+
 func getStdinLinesOrBlank() chan string {
 	multi := make(chan string)
 	if hasStdinLines := writeStdinLinesOrNothing(multi); !hasStdinLines {
@@ -94,16 +109,5 @@ func writeStdinLinesOrNothing(ch chan string) (hasStdinLines bool) {
 	} else {
 		// not piped
 		return false
-	}
-}
-
-func lineProcessingError(c *cli.Context, msg string, args ...any) {
-	c.Context = context.WithValue(c.Context, LINE_PROCESSING_ERROR, true)
-	fmt.Fprintf(os.Stderr, msg, args...)
-}
-
-func exitIfLineProcessingError(c *cli.Context) {
-	if val := c.Context.Value(LINE_PROCESSING_ERROR); val != nil && val.(bool) {
-		os.Exit(123)
 	}
 }

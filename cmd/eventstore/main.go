@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -12,17 +13,17 @@ import (
 	"github.com/fiatjaf/eventstore/mysql"
 	"github.com/fiatjaf/eventstore/postgresql"
 	"github.com/fiatjaf/eventstore/sqlite3"
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 )
 
 var db eventstore.Store
 
-var app = &cli.App{
+var app = &cli.Command{
 	Name:      "eventstore",
 	Usage:     "a CLI for all the eventstore backends",
 	UsageText: "eventstore -d ./data/sqlite <query|put|del> ...",
 	Flags: []cli.Flag{
-		&cli.PathFlag{
+		&cli.StringFlag{
 			Name:     "store",
 			Aliases:  []string{"d"},
 			Usage:    "path to the database file or directory or database connection uri",
@@ -34,8 +35,8 @@ var app = &cli.App{
 			Usage:   "store type ('sqlite', 'lmdb', 'badger', 'postgres', 'mysql', 'elasticsearch')",
 		},
 	},
-	Before: func(c *cli.Context) error {
-		path := c.Path("store")
+	Before: func(ctx context.Context, c *cli.Command) error {
+		path := c.String("store")
 		typ := c.String("type")
 		if typ != "" {
 			// bypass automatic detection
@@ -95,7 +96,7 @@ var app = &cli.App{
 }
 
 func main() {
-	if err := app.Run(os.Args); err != nil {
+	if err := app.Run(context.Background(), os.Args); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}

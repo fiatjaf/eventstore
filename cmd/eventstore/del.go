@@ -1,21 +1,38 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"os"
 
-	"github.com/urfave/cli/v2"
+	"github.com/nbd-wtf/go-nostr"
+	"github.com/urfave/cli/v3"
 )
 
 var del = &cli.Command{
 	Name:        "del",
 	Usage:       "deletes an event",
 	Description: ``,
-	Action: func(c *cli.Context) error {
-		for line := range getStdinLinesOrBlank() {
-			fmt.Println(line)
+	Action: func(ctx context.Context, c *cli.Command) error {
+		hasError := false
+		for line := range getStdinLinesOrFirstArgument(c) {
+			f := nostr.Filter{IDs: []string{line}}
+			ch, err := db.QueryEvents(ctx, f)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "error querying for %s: %s", f, err)
+				hasError = true
+			}
+			for evt := range ch {
+				if err := db.DeleteEvent(ctx, evt); err != nil {
+					fmt.Fprintf(os.Stderr, "error deleting")
+					hasError = true
+				}
+			}
 		}
 
-		exitIfLineProcessingError(c)
+		if hasError {
+			os.Exit(123)
+		}
 		return nil
 	},
 }

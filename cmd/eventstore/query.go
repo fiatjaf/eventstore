@@ -1,28 +1,33 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"os"
 
 	"github.com/mailru/easyjson"
 	"github.com/nbd-wtf/go-nostr"
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 )
 
 var query = &cli.Command{
 	Name:        "query",
 	Usage:       "queries an eventstore for events",
 	Description: ``,
-	Action: func(c *cli.Context) error {
-		for line := range getStdinLinesOrBlank() {
+	Action: func(ctx context.Context, c *cli.Command) error {
+		hasError := false
+		for line := range getStdinLinesOrFirstArgument(c) {
 			filter := nostr.Filter{}
 			if err := easyjson.Unmarshal([]byte(line), &filter); err != nil {
-				lineProcessingError(c, "invalid filter '%s' received from stdin: %s", line, err)
+				fmt.Fprintf(os.Stderr, "invalid filter '%s' received from stdin: %s", line, err)
+				hasError = true
 				continue
 			}
 
-			ch, err := db.QueryEvents(c.Context, filter)
+			ch, err := db.QueryEvents(ctx, filter)
 			if err != nil {
-				lineProcessingError(c, "error querying: %w", err)
+				fmt.Fprintf(os.Stderr, "error querying: %s", err)
+				hasError = true
 				continue
 			}
 
@@ -31,7 +36,9 @@ var query = &cli.Command{
 			}
 		}
 
-		exitIfLineProcessingError(c)
+		if hasError {
+			os.Exit(123)
+		}
 		return nil
 	},
 }
