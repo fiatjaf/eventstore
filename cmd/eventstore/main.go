@@ -21,7 +21,7 @@ var db eventstore.Store
 var app = &cli.Command{
 	Name:      "eventstore",
 	Usage:     "a CLI for all the eventstore backends",
-	UsageText: "eventstore -d ./data/sqlite <query|put|del> ...",
+	UsageText: "eventstore -d ./data/sqlite <query|save|delete> ...",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
 			Name:     "store",
@@ -87,12 +87,12 @@ var app = &cli.Command{
 		return db.Init()
 	},
 	Commands: []*cli.Command{
-		queryOrPut,
+		queryOrSave,
 		query,
-		put,
-		del,
+		save,
+		delete_,
 	},
-	DefaultCommand: "query-or-put",
+	DefaultCommand: "query-or-save",
 }
 
 func main() {

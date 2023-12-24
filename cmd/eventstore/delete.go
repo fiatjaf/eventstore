@@ -9,9 +9,9 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
-var del = &cli.Command{
-	Name:        "del",
-	Usage:       "deletes an event",
+var delete_ = &cli.Command{
+	Name:        "delete",
+	Usage:       "deletes an event and all its associated index entries",
 	Description: ``,
 	Action: func(ctx context.Context, c *cli.Command) error {
 		hasError := false

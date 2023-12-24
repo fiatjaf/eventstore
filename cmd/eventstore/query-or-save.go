@@ -10,9 +10,9 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
-var queryOrPut = &cli.Command{
+var queryOrSave = &cli.Command{
 	Hidden: true,
-	Name:   "query-or-put",
+	Name:   "query-or-save",
 	Action: func(ctx context.Context, c *cli.Command) error {
 		line := getStdin()
 
@@ -22,10 +22,10 @@ var queryOrPut = &cli.Command{
 		f := &nostr.Filter{}
 		if json.Unmarshal([]byte(line), ee) == nil && ee.Event.ID != "" {
 			e = &ee.Event
-			return doPut(ctx, line, e)
+			return doSave(ctx, line, e)
 		}
 		if json.Unmarshal([]byte(line), e) == nil && e.ID != "" {
-			return doPut(ctx, line, e)
+			return doSave(ctx, line, e)
 		}
 		if json.Unmarshal([]byte(line), re) == nil && len(re.Filters) > 0 {
 			f = &re.Filters[0]
@@ -39,7 +39,7 @@ var queryOrPut = &cli.Command{
 	},
 }
 
-func doPut(ctx context.Context, line string, e *nostr.Event) error {
+func doSave(ctx context.Context, line string, e *nostr.Event) error {
 	if err := db.SaveEvent(ctx, e); err != nil {
 		return fmt.Errorf("failed to save event '%s': %s", line, err)
 	}

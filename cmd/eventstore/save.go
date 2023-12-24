@@ -10,9 +10,9 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
-var put = &cli.Command{
-	Name:        "put",
-	Usage:       "saves an event to an eventstore",
+var save = &cli.Command{
+	Name:        "save",
+	Usage:       "stores an event in the database -- doesn't perform any kind of replacement",
 	Description: ``,
 	Action: func(ctx context.Context, c *cli.Command) error {
 		hasError := false
