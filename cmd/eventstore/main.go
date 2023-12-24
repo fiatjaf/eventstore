@@ -67,15 +67,36 @@ var app = &cli.Command{
 
 		switch typ {
 		case "sqlite":
-			db = &sqlite3.SQLite3Backend{DatabaseURL: path}
+			db = &sqlite3.SQLite3Backend{
+				DatabaseURL:       path,
+				QueryLimit:        1_000_000,
+				QueryAuthorsLimit: 1_000_000,
+				QueryKindsLimit:   1_000_000,
+				QueryIDsLimit:     1_000_000,
+				QueryTagsLimit:    1_000_000,
+			}
 		case "lmdb":
-			db = &lmdb.LMDBBackend{Path: path, MaxLimit: 5000}
+			db = &lmdb.LMDBBackend{Path: path, MaxLimit: 1_000_000}
 		case "badger":
-			db = &badger.BadgerBackend{Path: path, MaxLimit: 5000}
+			db = &badger.BadgerBackend{Path: path, MaxLimit: 1_000_000}
 		case "postgres", "postgresql":
-			db = &postgresql.PostgresBackend{DatabaseURL: path}
+			db = &postgresql.PostgresBackend{
+				DatabaseURL:       path,
+				QueryLimit:        1_000_000,
+				QueryAuthorsLimit: 1_000_000,
+				QueryKindsLimit:   1_000_000,
+				QueryIDsLimit:     1_000_000,
+				QueryTagsLimit:    1_000_000,
+			}
 		case "mysql":
-			db = &mysql.MySQLBackend{DatabaseURL: path}
+			db = &mysql.MySQLBackend{
+				DatabaseURL:       path,
+				QueryLimit:        1_000_000,
+				QueryAuthorsLimit: 1_000_000,
+				QueryKindsLimit:   1_000_000,
+				QueryIDsLimit:     1_000_000,
+				QueryTagsLimit:    1_000_000,
+			}
 		case "elasticsearch":
 			db = &elasticsearch.ElasticsearchStorage{URL: path}
 		case "":

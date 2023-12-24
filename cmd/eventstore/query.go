@@ -13,7 +13,7 @@ import (
 var query = &cli.Command{
 	Name:        "query",
 	Usage:       "queries an eventstore for events, takes a Nostr filter as argument",
-	Description: ``,
+	Description: "unless specified to be smaller, up to a million results will be returned",
 	Action: func(ctx context.Context, c *cli.Command) error {
 		hasError := false
 		for line := range getStdinLinesOrFirstArgument(c) {
