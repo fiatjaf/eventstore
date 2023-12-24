@@ -19,18 +19,18 @@ var save = &cli.Command{
 		for line := range getStdinLinesOrFirstArgument(c) {
 			var event nostr.Event
 			if err := easyjson.Unmarshal([]byte(line), &event); err != nil {
-				fmt.Fprintf(os.Stderr, "invalid event '%s' received from stdin: %s", line, err)
+				fmt.Fprintf(os.Stderr, "invalid event '%s': %s\n", line, err)
 				hasError = true
 				continue
 			}
 
 			if err := db.SaveEvent(ctx, &event); err != nil {
-				fmt.Fprintf(os.Stderr, "failed to save event '%s': %s", line, err)
+				fmt.Fprintf(os.Stderr, "failed to save event '%s': %s\n", line, err)
 				hasError = true
 				continue
 			}
 
-			fmt.Fprintf(os.Stderr, "saved %s", event.ID)
+			fmt.Fprintf(os.Stderr, "saved %s\n", event.ID)
 		}
 
 		if hasError {
