@@ -11,8 +11,8 @@ import (
 
 var delete_ = &cli.Command{
 	Name:        "delete",
-	Usage:       "deletes an event and all its associated index entries",
-	Description: ``,
+	Usage:       "deletes an event by id and all its associated index entries",
+	Description: "",
 	Action: func(ctx context.Context, c *cli.Command) error {
 		hasError := false
 		for line := range getStdinLinesOrFirstArgument(c) {
