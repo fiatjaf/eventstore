@@ -19,14 +19,14 @@ var query = &cli.Command{
 		for line := range getStdinLinesOrFirstArgument(c) {
 			filter := nostr.Filter{}
 			if err := easyjson.Unmarshal([]byte(line), &filter); err != nil {
-				fmt.Fprintf(os.Stderr, "invalid filter '%s' received from stdin: %s", line, err)
+				fmt.Fprintf(os.Stderr, "invalid filter '%s': %s\n", line, err)
 				hasError = true
 				continue
 			}
 
 			ch, err := db.QueryEvents(ctx, filter)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "error querying: %s", err)
+				fmt.Fprintf(os.Stderr, "error querying: %s\n", err)
 				hasError = true
 				continue
 			}

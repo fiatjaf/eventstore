@@ -19,12 +19,12 @@ var delete_ = &cli.Command{
 			f := nostr.Filter{IDs: []string{line}}
 			ch, err := db.QueryEvents(ctx, f)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "error querying for %s: %s", f, err)
+				fmt.Fprintf(os.Stderr, "error querying for %s: %s\n", f, err)
 				hasError = true
 			}
 			for evt := range ch {
 				if err := db.DeleteEvent(ctx, evt); err != nil {
-					fmt.Fprintf(os.Stderr, "error deleting")
+					fmt.Fprintf(os.Stderr, "error deleting %s: %s\n", evt, err)
 					hasError = true
 				}
 			}
