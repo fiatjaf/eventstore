@@ -12,7 +12,7 @@ import (
 
 var query = &cli.Command{
 	Name:        "query",
-	Usage:       "queries an eventstore for events",
+	Usage:       "queries an eventstore for events, takes a Nostr filter as argument",
 	Description: ``,
 	Action: func(ctx context.Context, c *cli.Command) error {
 		hasError := false
