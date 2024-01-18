@@ -4,8 +4,6 @@ import (
 	"encoding/hex"
 	"strconv"
 	"strings"
-
-	"github.com/nbd-wtf/go-nostr"
 )
 
 func GetAddrTagElements(tagValue string) (kind uint16, pkb []byte, d string) {
@@ -18,17 +16,4 @@ func GetAddrTagElements(tagValue string) (kind uint16, pkb []byte, d string) {
 		}
 	}
 	return 0, nil, ""
-}
-
-func TagSorter(a, b nostr.Tag) int {
-	if len(a) < 2 {
-		if len(b) < 2 {
-			return 0
-		}
-		return -1
-	}
-	if len(b) < 2 {
-		return 1
-	}
-	return strings.Compare(a[1], b[1])
 }

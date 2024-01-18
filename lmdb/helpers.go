@@ -79,7 +79,6 @@ func (b *LMDBBackend) getIndexKeysForEvent(evt *nostr.Event) []key {
 	}
 
 	// ~ by tagvalue+date
-	slices.SortFunc(evt.Tags, eventstore.TagSorter)
 	for i, tag := range evt.Tags {
 		if len(tag) < 2 || len(tag[0]) != 1 || len(tag[1]) == 0 || len(tag[1]) > 100 {
 			// not indexable
