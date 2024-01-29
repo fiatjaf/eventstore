@@ -3,9 +3,7 @@ package mysql
 import (
 	"context"
 	"database/sql"
-	"encoding/hex"
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/jmoiron/sqlx"
@@ -59,72 +57,48 @@ func (b MySQLBackend) CountEvents(ctx context.Context, filter nostr.Filter) (int
 	return count, nil
 }
 
+func makePlaceHolders(n int) string {
+	return strings.TrimRight(strings.Repeat("?,", n), ",")
+}
+
 func (b MySQLBackend) queryEventsSql(filter nostr.Filter, doCount bool) (string, []any, error) {
 	var conditions []string
 	var params []any
 
-	if filter.IDs != nil {
+	if len(filter.IDs) > 0 {
 		if len(filter.IDs) > b.QueryIDsLimit {
 			// too many ids, fail everything
 			return "", nil, nil
 		}
 
-		likeids := make([]string, 0, len(filter.IDs))
-		for _, id := range filter.IDs {
-			// to prevent sql attack here we will check if
-			// these ids are valid 32byte hex
-			parsed, err := hex.DecodeString(id)
-			if err != nil || len(parsed) != 32 {
-				continue
-			}
-			likeids = append(likeids, fmt.Sprintf("id LIKE '%x%%'", parsed))
+		for _, v := range filter.IDs {
+			params = append(params, v)
 		}
-		if len(likeids) == 0 {
-			// ids being [] mean you won't get anything
-			return "", nil, nil
-		}
-		conditions = append(conditions, "("+strings.Join(likeids, " OR ")+")")
+		conditions = append(conditions, ` id IN (`+makePlaceHolders(len(filter.IDs))+`)`)
 	}
 
-	if filter.Authors != nil {
+	if len(filter.Authors) > 0 {
 		if len(filter.Authors) > b.QueryAuthorsLimit {
 			// too many authors, fail everything
 			return "", nil, nil
 		}
 
-		likekeys := make([]string, 0, len(filter.Authors))
-		for _, key := range filter.Authors {
-			// to prevent sql attack here we will check if
-			// these keys are valid 32byte hex
-			parsed, err := hex.DecodeString(key)
-			if err != nil || len(parsed) != 32 {
-				continue
-			}
-			likekeys = append(likekeys, fmt.Sprintf("pubkey LIKE '%x%%'", parsed))
+		for _, v := range filter.Authors {
+			params = append(params, v)
 		}
-		if len(likekeys) == 0 {
-			// authors being [] mean you won't get anything
-			return "", nil, nil
-		}
-		conditions = append(conditions, "("+strings.Join(likekeys, " OR ")+")")
+		conditions = append(conditions, ` pubkey IN (`+makePlaceHolders(len(filter.IDs))+`)`)
 	}
 
-	if filter.Kinds != nil {
+	if len(filter.Kinds) > 0 {
 		if len(filter.Kinds) > b.QueryKindsLimit {
 			// too many kinds, fail everything
 			return "", nil, nil
 		}
 
-		if len(filter.Kinds) == 0 {
-			// kinds being [] mean you won't get anything
-			return "", nil, nil
+		for _, v := range filter.Kinds {
+			params = append(params, v)
 		}
-		// no sql injection issues since these are ints
-		inkinds := make([]string, len(filter.Kinds))
-		for i, kind := range filter.Kinds {
-			inkinds[i] = strconv.Itoa(kind)
-		}
-		conditions = append(conditions, `kind IN (`+strings.Join(inkinds, ",")+`)`)
+		conditions = append(conditions, `kind IN (`+makePlaceHolders(len(filter.Kinds))+`)`)
 	}
 
 	tagQuery := make([]string, 0, 1)
