@@ -120,22 +120,26 @@ func (b MySQLBackend) queryEventsSql(filter nostr.Filter, doCount bool) (string,
 	// we use a very bad implementation in which we only check the tag values and
 	// ignore the tag names
 	for _, tagValue := range tagQuery {
-		params = append(params, "%"+tagValue+"%")
-		conditions = append(conditions, "tags LIKE ?")
+		conditions = append(conditions, `tags LIKE ?`)
+		params = append(params, `%`+strings.ReplaceAll(tagValue, `%`, `\%`)+`%`)
 	}
 
 	if filter.Since != nil {
-		conditions = append(conditions, "created_at >= ?")
+		conditions = append(conditions, `created_at >= ?`)
 		params = append(params, filter.Since)
 	}
 	if filter.Until != nil {
-		conditions = append(conditions, "created_at <= ?")
+		conditions = append(conditions, `created_at <= ?`)
 		params = append(params, filter.Until)
+	}
+	if filter.Search != "" {
+		conditions = append(conditions, `content LIKE ?`)
+		params = append(params, `%`+strings.ReplaceAll(filter.Search, `%`, `\%`)+`%`)
 	}
 
 	if len(conditions) == 0 {
 		// fallback
-		conditions = append(conditions, "true")
+		conditions = append(conditions, `true`)
 	}
 
 	if filter.Limit < 1 || filter.Limit > b.QueryLimit {

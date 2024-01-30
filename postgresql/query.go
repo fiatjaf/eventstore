@@ -119,21 +119,25 @@ func (b PostgresBackend) queryEventsSql(filter nostr.Filter, doCount bool) (stri
 			params = append(params, tagValue)
 		}
 
-		conditions = append(conditions, "tagvalues && ARRAY["+makePlaceHolders(len(tagQuery))+"]")
+		conditions = append(conditions, `tagvalues && ARRAY[`+makePlaceHolders(len(tagQuery))+`]`)
 	}
 
 	if filter.Since != nil {
-		conditions = append(conditions, "created_at >= ?")
+		conditions = append(conditions, `created_at >= ?`)
 		params = append(params, filter.Since)
 	}
 	if filter.Until != nil {
-		conditions = append(conditions, "created_at <= ?")
+		conditions = append(conditions, `created_at <= ?`)
 		params = append(params, filter.Until)
+	}
+	if filter.Search != "" {
+		conditions = append(conditions, `content LIKE ?`)
+		params = append(params, `%`+strings.ReplaceAll(filter.Search, `%`, `\%`)+`%`)
 	}
 
 	if len(conditions) == 0 {
 		// fallback
-		conditions = append(conditions, "true")
+		conditions = append(conditions, `true`)
 	}
 
 	if filter.Limit < 1 || filter.Limit > b.QueryLimit {
