@@ -53,9 +53,6 @@ func (b BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch
 					defer txMx.Unlock()
 					it := txn.NewIterator(opts)
 					iteratorClosers[i] = it.Close
-
-					defer close(q.results)
-
 					for it.Seek(q.startingPoint); it.ValidForPrefix(q.prefix); it.Next() {
 						item := it.Item()
 						key := item.Key()
@@ -128,6 +125,10 @@ func (b BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch
 				defer txMx.Unlock()
 				for _, itclose := range iteratorClosers {
 					itclose()
+				}
+				// this is the correct time to close the results channels
+				for _, q := range queries {
+					close(q.results)
 				}
 			}()
 
