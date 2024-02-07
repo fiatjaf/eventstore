@@ -11,7 +11,7 @@ import (
 )
 
 func (b PostgresBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch chan *nostr.Event, err error) {
-	query, params, err := b.queryEventsSql(filter, false)
+	query, params, err := b.queryEventsSql(&filter, false)
 	if err != nil {
 		return nil, err
 	}
@@ -41,7 +41,7 @@ func (b PostgresBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (
 	return ch, nil
 }
 
-func (b PostgresBackend) CountEvents(ctx context.Context, filter nostr.Filter) (int64, error) {
+func (b PostgresBackend) CountEvents(ctx context.Context, filter *nostr.Filter) (int64, error) {
 	query, params, err := b.queryEventsSql(filter, true)
 	if err != nil {
 		return 0, err
@@ -58,10 +58,14 @@ func makePlaceHolders(n int) string {
 	return strings.TrimRight(strings.Repeat("?,", n), ",")
 }
 
-func (b PostgresBackend) queryEventsSql(filter nostr.Filter, doCount bool) (string, []any, error) {
+func (b PostgresBackend) queryEventsSql(filter *nostr.Filter, doCount bool) (string, []any, error) {
 	var conditions []string
 	var params []any
 
+	// filter cannot be null
+	if filter == nil {
+		return "", nil, fmt.Errorf("filter cannot be null")
+	}
 	if len(filter.IDs) > 0 {
 		if len(filter.IDs) > b.QueryIDsLimit {
 			// too many ids, fail everything

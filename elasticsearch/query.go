@@ -32,7 +32,7 @@ type EsCountResult struct {
 	Count int64
 }
 
-func buildDsl(filter nostr.Filter) ([]byte, error) {
+func buildDsl(filter *nostr.Filter) ([]byte, error) {
 	dsl := esquery.Bool()
 
 	prefixFilter := func(fieldName string, values []string) {
@@ -89,7 +89,7 @@ func buildDsl(filter nostr.Filter) ([]byte, error) {
 	return json.Marshal(esquery.Query(dsl))
 }
 
-func (ess *ElasticsearchStorage) getByID(filter nostr.Filter) ([]*nostr.Event, error) {
+func (ess *ElasticsearchStorage) getByID(filter *nostr.Filter) ([]*nostr.Event, error) {
 	got, err := ess.es.Mget(
 		esutil.NewJSONReader(filter),
 		ess.es.Mget.WithIndex(ess.IndexName))
@@ -121,8 +121,8 @@ func (ess *ElasticsearchStorage) QueryEvents(ctx context.Context, filter nostr.F
 	ch := make(chan *nostr.Event)
 
 	// optimization: get by id
-	if isGetByID(filter) {
-		if evts, err := ess.getByID(filter); err == nil {
+	if isGetByID(&filter) {
+		if evts, err := ess.getByID(&filter); err == nil {
 			for _, evt := range evts {
 				ch <- evt
 			}
@@ -132,7 +132,7 @@ func (ess *ElasticsearchStorage) QueryEvents(ctx context.Context, filter nostr.F
 		}
 	}
 
-	dsl, err := buildDsl(filter)
+	dsl, err := buildDsl(&filter)
 	if err != nil {
 		return nil, err
 	}
@@ -176,7 +176,7 @@ func (ess *ElasticsearchStorage) QueryEvents(ctx context.Context, filter nostr.F
 	return ch, nil
 }
 
-func isGetByID(filter nostr.Filter) bool {
+func isGetByID(filter *nostr.Filter) bool {
 	isGetById := len(filter.IDs) > 0 &&
 		len(filter.Authors) == 0 &&
 		len(filter.Kinds) == 0 &&
@@ -216,7 +216,7 @@ func toInterfaceSlice(slice interface{}) []interface{} {
 	return ret
 }
 
-func (ess *ElasticsearchStorage) CountEvents(ctx context.Context, filter nostr.Filter) (int64, error) {
+func (ess *ElasticsearchStorage) CountEvents(ctx context.Context, filter *nostr.Filter) (int64, error) {
 	count := int64(0)
 
 	// optimization: get by id
