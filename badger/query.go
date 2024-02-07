@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log"
+	"sync"
 
 	"github.com/dgraph-io/badger/v4"
 	"github.com/nbd-wtf/go-nostr"
@@ -41,10 +42,15 @@ func (b BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch
 				Reverse: true,
 			}
 
+			// the transaction inside a badger view must not be used concurrently
+			var txMx sync.Mutex
 			// actually iterate
 			iteratorClosers := make([]func(), len(queries))
 			for i, q := range queries {
 				go func(i int, q query) {
+					// lock transaction before making new iterator
+					txMx.Lock()
+					defer txMx.Unlock()
 					it := txn.NewIterator(opts)
 					iteratorClosers[i] = it.Close
 
@@ -117,6 +123,9 @@ func (b BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch
 			// now it's a good time to schedule this
 			defer func() {
 				close(ch)
+				// lock transaction before closing iterators
+				txMx.Lock()
+				defer txMx.Unlock()
 				for _, itclose := range iteratorClosers {
 					itclose()
 				}
