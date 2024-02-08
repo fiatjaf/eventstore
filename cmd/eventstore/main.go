@@ -8,6 +8,7 @@ import (
 
 	"github.com/fiatjaf/eventstore"
 	"github.com/fiatjaf/eventstore/badger"
+	"github.com/fiatjaf/eventstore/bolt"
 	"github.com/fiatjaf/eventstore/elasticsearch"
 	"github.com/fiatjaf/eventstore/lmdb"
 	"github.com/fiatjaf/eventstore/mysql"
@@ -32,7 +33,7 @@ var app = &cli.Command{
 		&cli.StringFlag{
 			Name:    "type",
 			Aliases: []string{"t"},
-			Usage:   "store type ('sqlite', 'lmdb', 'badger', 'postgres', 'mysql', 'elasticsearch')",
+			Usage:   "store type ('sqlite', 'lmdb', 'bolt', 'badger', 'postgres', 'mysql', 'elasticsearch')",
 		},
 	},
 	Before: func(ctx context.Context, c *cli.Command) error {
@@ -77,6 +78,8 @@ var app = &cli.Command{
 			}
 		case "lmdb":
 			db = &lmdb.LMDBBackend{Path: path, MaxLimit: 1_000_000}
+		case "bolt":
+			db = &bolt.BoltBackend{Path: path, MaxLimit: 1_000_000}
 		case "badger":
 			db = &badger.BadgerBackend{Path: path, MaxLimit: 1_000_000}
 		case "postgres", "postgresql":
