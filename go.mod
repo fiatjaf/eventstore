@@ -5,6 +5,7 @@ go 1.21
 require (
 	github.com/PowerDNS/lmdb-go v1.9.2
 	github.com/aquasecurity/esquery v0.2.0
+	github.com/boltdb/bolt v1.3.1
 	github.com/dgraph-io/badger/v4 v4.2.0
 	github.com/elastic/go-elasticsearch/v8 v8.10.1
 	github.com/go-sql-driver/mysql v1.7.1
