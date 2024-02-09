@@ -7,17 +7,11 @@ import (
 	"github.com/nbd-wtf/go-nostr"
 )
 
-// RelayInterface is a wrapper thing that unifies Store and nostr.Relay under a common API.
-type RelayInterface interface {
-	Publish(ctx context.Context, event nostr.Event) error
-	QuerySync(ctx context.Context, filter nostr.Filter, opts ...nostr.SubscriptionOption) ([]*nostr.Event, error)
-}
-
 type RelayWrapper struct {
 	Store
 }
 
-var _ RelayInterface = (*RelayWrapper)(nil)
+var _ nostr.RelayStore = (*RelayWrapper)(nil)
 
 func (w RelayWrapper) Publish(ctx context.Context, evt nostr.Event) error {
 	if 20000 <= evt.Kind && evt.Kind < 30000 {
