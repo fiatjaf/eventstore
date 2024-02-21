@@ -34,7 +34,11 @@ func (b PostgresBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (
 				return
 			}
 			evt.CreatedAt = nostr.Timestamp(timestamp)
-			ch <- &evt
+			select {
+			case ch <- &evt:
+			case <-ctx.Done():
+				return
+			}
 		}
 	}()
 
