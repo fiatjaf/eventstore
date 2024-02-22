@@ -71,7 +71,7 @@ func (b SQLite3Backend) queryEventsSql(filter nostr.Filter, doCount bool) (strin
 		for _, v := range filter.IDs {
 			params = append(params, v)
 		}
-		conditions = append(conditions, ` id IN (`+makePlaceHolders(len(filter.IDs))+`)`)
+		conditions = append(conditions, `id IN (`+makePlaceHolders(len(filter.IDs))+`)`)
 	}
 
 	if len(filter.Authors) > 0 {
@@ -83,7 +83,7 @@ func (b SQLite3Backend) queryEventsSql(filter nostr.Filter, doCount bool) (strin
 		for _, v := range filter.Authors {
 			params = append(params, v)
 		}
-		conditions = append(conditions, ` pubkey IN (`+makePlaceHolders(len(filter.Authors))+`)`)
+		conditions = append(conditions, `pubkey IN (`+makePlaceHolders(len(filter.Authors))+`)`)
 	}
 
 	if len(filter.Kinds) > 0 {
