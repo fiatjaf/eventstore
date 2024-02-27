@@ -98,6 +98,11 @@ func (b SQLite3Backend) queryEventsSql(filter nostr.Filter, doCount bool) (strin
 		conditions = append(conditions, `kind IN (`+makePlaceHolders(len(filter.Kinds))+`)`)
 	}
 
+	if len(filter.Search) > 0 {
+		conditions = append(conditions, `content LIKE ? ESCAPE '\'`)
+		params = append(params, `%`+strings.ReplaceAll(filter.Search, `%`, `\%`)+`%`)
+	}
+
 	tagQuery := make([]string, 0, 1)
 	for _, values := range filter.Tags {
 		if len(values) == 0 {
