@@ -146,7 +146,11 @@ func (b *LMDBBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (cha
 		for {
 			// emit latest event in queue
 			latest := emitQueue[0]
-			ch <- latest.Event
+			select {
+			case ch <- latest.Event:
+			case <-ctx.Done():
+				return
+			}
 
 			// stop when reaching limit
 			emittedEvents++
