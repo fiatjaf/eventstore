@@ -12,6 +12,7 @@ type PostgresBackend struct {
 	QueryAuthorsLimit int
 	QueryKindsLimit   int
 	QueryTagsLimit    int
+	KeepRecentEvents  bool
 }
 
 func (b *PostgresBackend) Close() {
