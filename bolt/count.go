@@ -6,9 +6,9 @@ import (
 	"encoding/binary"
 	"log"
 
-	"github.com/boltdb/bolt"
 	"github.com/nbd-wtf/go-nostr"
 	nostr_binary "github.com/nbd-wtf/go-nostr/binary"
+	bolt "go.etcd.io/bbolt"
 )
 
 func (b *BoltBackend) CountEvents(ctx context.Context, filter nostr.Filter) (int64, error) {

@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/hex"
 
-	"github.com/boltdb/bolt"
 	"github.com/nbd-wtf/go-nostr"
+	bolt "go.etcd.io/bbolt"
 )
 
 func (b *BoltBackend) DeleteEvent(ctx context.Context, evt *nostr.Event) error {

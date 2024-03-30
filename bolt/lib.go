@@ -5,8 +5,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/boltdb/bolt"
 	"github.com/fiatjaf/eventstore"
+	bolt "go.etcd.io/bbolt"
 )
 
 const (

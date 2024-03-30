@@ -3,7 +3,7 @@ package bolt
 import (
 	"encoding/binary"
 
-	"github.com/boltdb/bolt"
+	bolt "go.etcd.io/bbolt"
 )
 
 const (
