@@ -67,7 +67,7 @@ func (b BadgerBackend) CountEvents(ctx context.Context, filter nostr.Filter) (in
 						}
 
 						// check if this matches the other filters that were not part of the index
-						if extraFilter == nil || extraFilter.Matches(evt) {
+						if extraFilter.Matches(evt) {
 							count++
 						}
 

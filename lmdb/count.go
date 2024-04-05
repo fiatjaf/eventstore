@@ -58,22 +58,22 @@ func (b *LMDBBackend) CountEvents(ctx context.Context, filter nostr.Filter) (int
 					}
 				}
 
-				// fetch actual event
-				val, err := txn.Get(b.rawEventStore, idx)
-				if err != nil {
-					panic(err)
-				}
-
 				if extraFilter == nil {
 					count++
 				} else {
+					// fetch actual event
+					val, err := txn.Get(b.rawEventStore, idx)
+					if err != nil {
+						panic(err)
+					}
+
 					evt := &nostr.Event{}
 					if err := nostr_binary.Unmarshal(val, evt); err != nil {
 						return err
 					}
 
 					// check if this matches the other filters that were not part of the index
-					if extraFilter == nil || extraFilter.Matches(evt) {
+					if extraFilter.Matches(evt) {
 						count++
 					}
 
