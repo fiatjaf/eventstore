@@ -46,12 +46,15 @@ func (b *LMDBBackend) CountEvents(ctx context.Context, filter nostr.Filter) (int
 
 			for {
 				// we already have a k and a v and an err from the cursor setup, so check and use these
-				if iterr != nil || !bytes.HasPrefix(k, q.prefix) {
-					break
+				if iterr != nil ||
+					len(k) != q.prefixSize+q.timestampSize ||
+					!bytes.Equal(k[:q.prefixSize], q.prefix) {
+					// either iteration has errored or we reached the end of this prefix
+					break // stop this cursor and move to the next one
 				}
 
 				// "id" indexes don't contain a timestamp
-				if !q.skipTimestamp {
+				if q.timestampSize == 4 {
 					createdAt := binary.BigEndian.Uint32(k[len(k)-4:])
 					if createdAt < since {
 						break
