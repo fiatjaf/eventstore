@@ -35,12 +35,21 @@ func (b *LMDBBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (cha
 		return nil, err
 	}
 
+	// max number of events we'll return
+	limit := b.MaxLimit / 4
+	if filter.Limit > 0 && filter.Limit < b.MaxLimit {
+		limit = filter.Limit
+	}
+
 	ch := make(chan *nostr.Event)
 	go func() {
 		defer close(ch)
 
 		for _, q := range queries {
 			q := q
+
+			pulled := 0 // this will be hard-capped at the global limit of the query
+
 			go b.lmdbEnv.View(func(txn *lmdb.Txn) error {
 				txn.RawRead = true
 				defer close(q.results)
@@ -105,6 +114,10 @@ func (b *LMDBBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (cha
 					if extraFilter == nil || extraFilter.Matches(evt) {
 						select {
 						case q.results <- evt:
+							pulled++
+							if pulled >= limit {
+								break
+							}
 						case <-ctx.Done():
 							break
 						}
@@ -118,12 +131,6 @@ func (b *LMDBBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (cha
 		}
 		if err != nil {
 			log.Printf("lmdb: error on cursor iteration: %v\n", err)
-		}
-
-		// max number of events we'll return
-		limit := b.MaxLimit
-		if filter.Limit > 0 && filter.Limit < limit {
-			limit = filter.Limit
 		}
 
 		// receive results and ensure we only return the most recent ones always

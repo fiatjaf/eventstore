@@ -34,12 +34,21 @@ func (b *BoltBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (cha
 		return nil, err
 	}
 
+	// max number of events we'll return
+	limit := b.MaxLimit / 4
+	if filter.Limit > 0 && filter.Limit < b.MaxLimit {
+		limit = filter.Limit
+	}
+
 	ch := make(chan *nostr.Event)
 	go func() {
 		defer close(ch)
 
 		for _, q := range queries {
 			q := q
+
+			pulled := 0 // this query will be hardcapped at this global limit
+
 			go b.db.View(func(txn *bolt.Tx) error {
 				defer close(q.results)
 
@@ -76,6 +85,10 @@ func (b *BoltBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (cha
 					if extraFilter == nil || extraFilter.Matches(evt) {
 						select {
 						case q.results <- evt:
+							pulled++
+							if pulled > limit {
+								break
+							}
 						case <-ctx.Done():
 							break
 						}
@@ -83,12 +96,6 @@ func (b *BoltBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (cha
 				}
 				return nil
 			})
-		}
-
-		// max number of events we'll return
-		limit := b.MaxLimit
-		if filter.Limit > 0 && filter.Limit < limit {
-			limit = filter.Limit
 		}
 
 		// receive results and ensure we only return the most recent ones always

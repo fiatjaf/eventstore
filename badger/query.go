@@ -34,12 +34,21 @@ func (b BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch
 		return nil, err
 	}
 
+	// max number of events we'll return
+	limit := b.MaxLimit / 4
+	if filter.Limit > 0 && filter.Limit < b.MaxLimit {
+		limit = filter.Limit
+	}
+
 	go func() {
 		defer close(ch)
 
 		// actually iterate
 		for _, q := range queries {
 			q := q
+
+			pulled := 0 // this query will be hardcapped at this global limit
+
 			go b.View(func(txn *badger.Txn) error {
 				// iterate only through keys and in reverse order
 				opts := badger.IteratorOptions{
@@ -87,7 +96,15 @@ func (b BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch
 
 						// check if this matches the other filters that were not part of the index
 						if extraFilter == nil || extraFilter.Matches(evt) {
-							q.results <- evt
+							select {
+							case q.results <- evt:
+								pulled++
+								if pulled > limit {
+									break
+								}
+							case <-ctx.Done():
+								break
+							}
 						}
 
 						return nil
@@ -96,12 +113,6 @@ func (b BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch
 
 				return nil
 			})
-		}
-
-		// max number of events we'll return
-		limit := b.MaxLimit
-		if filter.Limit > 0 && filter.Limit < limit {
-			limit = filter.Limit
 		}
 
 		// receive results and ensure we only return the most recent ones always
