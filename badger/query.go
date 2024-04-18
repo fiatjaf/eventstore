@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log"
 
@@ -25,6 +26,8 @@ type queryEvent struct {
 	*nostr.Event
 	query int
 }
+
+var exit = errors.New("exit")
 
 func (b BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (chan *nostr.Event, error) {
 	ch := make(chan *nostr.Event)
@@ -87,7 +90,8 @@ func (b BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch
 							idx, q.prefix, key, err)
 						return err
 					}
-					item.Value(func(val []byte) error {
+
+					if err := item.Value(func(val []byte) error {
 						evt := &nostr.Event{}
 						if err := nostr_binary.Unmarshal(val, evt); err != nil {
 							log.Printf("badger: value read error (id %x): %s\n", val[0:32], err)
@@ -100,15 +104,19 @@ func (b BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch
 							case q.results <- evt:
 								pulled++
 								if pulled > limit {
-									break
+									return exit
 								}
 							case <-ctx.Done():
-								break
+								return exit
 							}
 						}
 
 						return nil
-					})
+					}); err == exit {
+						return nil
+					} else if err != nil {
+						return err
+					}
 				}
 
 				return nil

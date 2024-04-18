@@ -84,14 +84,14 @@ func (b *LMDBBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (cha
 						len(k) != q.prefixSize+q.timestampSize ||
 						!bytes.Equal(k[:q.prefixSize], q.prefix) {
 						// either iteration has errored or we reached the end of this prefix
-						break // stop this cursor and move to the next one
+						return nil
 					}
 
 					// "id" indexes don't contain a timestamp
 					if q.timestampSize == 4 {
 						createdAt := binary.BigEndian.Uint32(k[len(k)-4:])
 						if createdAt < since {
-							break
+							return nil
 						}
 					}
 
@@ -101,13 +101,13 @@ func (b *LMDBBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (cha
 						log.Printf(
 							"lmdb: failed to get %x based on prefix %x, index key %x from raw event store: %s\n",
 							idx, q.prefix, k, err)
-						break
+						return fmt.Errorf("error: %w", err)
 					}
 
 					evt := &nostr.Event{}
 					if err := nostr_binary.Unmarshal(val, evt); err != nil {
 						log.Printf("lmdb: value read error (id %x): %s\n", val[0:32], err)
-						break
+						return fmt.Errorf("error: %w", err)
 					}
 
 					// check if this matches the other filters that were not part of the index before yielding
@@ -116,17 +116,16 @@ func (b *LMDBBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (cha
 						case q.results <- evt:
 							pulled++
 							if pulled >= limit {
-								break
+								return nil
 							}
 						case <-ctx.Done():
-							break
+							return nil
 						}
 					}
 
 					// move one back (we'll look into k and v and err in the next iteration)
 					k, idx, iterr = cursor.Get(nil, nil, lmdb.Prev)
 				}
-				return nil
 			})
 		}
 		if err != nil {
