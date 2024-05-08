@@ -119,7 +119,7 @@ func (b PostgresBackend) queryEventsSql(filter nostr.Filter, doCount bool) (stri
 			params = append(params, tagValue)
 		}
 
-		conditions = append(conditions, `tagvalues && ARRAY[`+makePlaceHolders(len(tagQuery))+`]`)
+		conditions = append(conditions, `tagvalues @> ARRAY[`+makePlaceHolders(len(tagQuery))+`]`)
 	}
 
 	if filter.Since != nil {
