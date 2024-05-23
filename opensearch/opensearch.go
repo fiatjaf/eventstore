@@ -3,9 +3,11 @@ package opensearch
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -51,6 +53,7 @@ var indexMapping = `
 type OpensearchStorage struct {
 	URL       string
 	IndexName string
+	Insecure  bool
 
 	client *opensearchapi.Client
 	bi     opensearchutil.BulkIndexer
@@ -67,6 +70,10 @@ func (oss *OpensearchStorage) Init() error {
 	if oss.URL != "" {
 		cfg.Client.Addresses = strings.Split(oss.URL, ",")
 	}
+	if oss.Insecure {
+		cfg.Client.Transport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	}
+
 	client, err := opensearchapi.NewClient(cfg)
 	if err != nil {
 		return err
