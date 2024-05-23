@@ -15,7 +15,6 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.18
 	github.com/nbd-wtf/go-nostr v0.28.5
 	github.com/opensearch-project/opensearch-go/v4 v4.0.0
-	github.com/redis/go-redis/v9 v9.5.1
 	github.com/stretchr/testify v1.9.0
 	github.com/urfave/cli/v3 v3.0.0-alpha7
 	golang.org/x/exp v0.0.0-20231006140011-7918f672742d
@@ -29,7 +28,6 @@ require (
 	github.com/decred/dcrd/crypto/blake256 v1.0.1 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.2.0 // indirect
 	github.com/dgraph-io/ristretto v0.1.1 // indirect
-	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/elastic/elastic-transport-go/v8 v8.3.0 // indirect
 	github.com/elastic/go-elasticsearch/v7 v7.17.10 // indirect
