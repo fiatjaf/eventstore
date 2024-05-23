@@ -71,7 +71,9 @@ func (oss *OpensearchStorage) Init() error {
 		cfg.Client.Addresses = strings.Split(oss.URL, ",")
 	}
 	if oss.Insecure {
-		cfg.Client.Transport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+		transport := http.DefaultTransport.(*http.Transport).Clone()
+		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+		cfg.Client.Transport = transport
 	}
 
 	client, err := opensearchapi.NewClient(cfg)
