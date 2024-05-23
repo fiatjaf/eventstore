@@ -110,6 +110,7 @@ func (oss *OpensearchStorage) QueryEvents(ctx context.Context, filter nostr.Filt
 				ch <- evt
 			}
 			close(ch)
+			ch = nil
 		} else {
 			return nil, fmt.Errorf("error getting by id: %w", err)
 		}
@@ -152,7 +153,9 @@ func (oss *OpensearchStorage) QueryEvents(ctx context.Context, filter nostr.Filt
 				}
 			}
 		}
-		close(ch)
+		if ch != nil {
+			close(ch)
+		}
 	}()
 
 	return ch, nil
