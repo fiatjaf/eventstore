@@ -13,7 +13,8 @@ require (
 	github.com/mailru/easyjson v0.7.7
 	github.com/mattn/go-sqlite3 v1.14.18
 	github.com/nbd-wtf/go-nostr v0.28.5
-	github.com/stretchr/testify v1.8.4
+	github.com/opensearch-project/opensearch-go/v4 v4.0.0
+	github.com/stretchr/testify v1.9.0
 	github.com/urfave/cli/v3 v3.0.0-alpha7
 	go.etcd.io/bbolt v1.3.9
 	golang.org/x/exp v0.0.0-20231006140011-7918f672742d
