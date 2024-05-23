@@ -87,9 +87,11 @@ func (oss *OpensearchStorage) getByID(filter nostr.Filter) ([]*nostr.Event, erro
 	for _, e := range mgetResponse.Docs {
 		if e.Found {
 			if b, err := e.Source.MarshalJSON(); err == nil {
-				var ev nostr.Event
-				if err = json.Unmarshal(b, &ev); err == nil {
-					events = append(events, &ev)
+				var payload struct {
+					Event nostr.Event `json:"event"`
+				}
+				if err = json.Unmarshal(b, &payload); err == nil {
+					events = append(events, &payload.Event)
 				}
 			}
 		}
@@ -130,7 +132,7 @@ func (oss *OpensearchStorage) QueryEvents(ctx context.Context, filter nostr.Filt
 			Indices: []string{oss.IndexName},
 			Body:    bytes.NewReader(dsl),
 			Params: opensearchapi.SearchParams{
-				Size: &limit,
+				Size: opensearchapi.ToPointer(limit),
 				Sort: []string{"event.created_at:desc"},
 			},
 		},
@@ -142,9 +144,11 @@ func (oss *OpensearchStorage) QueryEvents(ctx context.Context, filter nostr.Filt
 	go func() {
 		for _, e := range searchResponse.Hits.Hits {
 			if b, err := e.Source.MarshalJSON(); err == nil {
-				var ev nostr.Event
-				if err = json.Unmarshal(b, &ev); err == nil {
-					ch <- &ev
+				var payload struct {
+					Event nostr.Event `json:"event"`
+				}
+				if err = json.Unmarshal(b, &payload); err == nil {
+					ch <- &payload.Event
 				}
 			}
 		}
