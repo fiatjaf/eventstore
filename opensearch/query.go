@@ -129,11 +129,11 @@ func (oss *OpensearchStorage) QueryEvents(ctx context.Context, filter nostr.Filt
 		&opensearchapi.SearchReq{
 			Indices: []string{oss.IndexName},
 			Body:    bytes.NewReader(dsl),
-			Params:  opensearchapi.SearchParams{},
+			Params: opensearchapi.SearchParams{
+				Size: &limit,
+				Sort: []string{"event.created_at:desc"},
+			},
 		},
-		// TODO
-		//es.Search.WithSize(limit),
-		//es.Search.WithSort("event.created_at:desc"),
 	)
 	if err != nil {
 		return nil, err
