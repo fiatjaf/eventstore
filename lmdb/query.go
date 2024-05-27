@@ -30,6 +30,8 @@ type queryEvent struct {
 }
 
 func (b *LMDBBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (chan *nostr.Event, error) {
+	ch := make(chan *nostr.Event)
+
 	queries, extraFilter, since, err := b.prepareQueries(filter)
 	if err != nil {
 		return nil, err
@@ -41,7 +43,11 @@ func (b *LMDBBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (cha
 		limit = filter.Limit
 	}
 
-	ch := make(chan *nostr.Event)
+	if filter.Search != "" {
+		close(ch)
+		return ch, nil
+	}
+
 	go func() {
 		defer close(ch)
 
@@ -136,7 +142,7 @@ func (b *LMDBBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (cha
 		emittedEvents := 0
 
 		// first pass
-		emitQueue := make(priorityQueue, 0, len(queries)+limit)
+		emitQueue := make(priorityQueue, 0, len(queries))
 		for _, q := range queries {
 			evt, ok := <-q.results
 			if ok {

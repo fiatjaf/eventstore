@@ -29,9 +29,16 @@ type queryEvent struct {
 }
 
 func (b *BoltBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (chan *nostr.Event, error) {
+	ch := make(chan *nostr.Event)
+
 	queries, extraFilter, since, err := prepareQueries(filter)
 	if err != nil {
 		return nil, err
+	}
+
+	if filter.Search != "" {
+		close(ch)
+		return ch, nil
 	}
 
 	// max number of events we'll return
@@ -40,7 +47,6 @@ func (b *BoltBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (cha
 		limit = filter.Limit
 	}
 
-	ch := make(chan *nostr.Event)
 	go func() {
 		defer close(ch)
 
@@ -103,7 +109,7 @@ func (b *BoltBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (cha
 		emittedEvents := 0
 
 		// first pass
-		emitQueue := make(priorityQueue, 0, len(queries)+limit)
+		emitQueue := make(priorityQueue, 0, len(queries))
 		for _, q := range queries {
 			evt, ok := <-q.results
 			if ok {

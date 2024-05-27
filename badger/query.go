@@ -32,6 +32,11 @@ var exit = errors.New("exit")
 func (b BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (chan *nostr.Event, error) {
 	ch := make(chan *nostr.Event)
 
+	if filter.Search != "" {
+		close(ch)
+		return ch, nil
+	}
+
 	queries, extraFilter, since, err := prepareQueries(filter)
 	if err != nil {
 		return nil, err
@@ -127,7 +132,7 @@ func (b BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch
 		emittedEvents := 0
 
 		// first pass
-		emitQueue := make(priorityQueue, 0, len(queries)+limit)
+		emitQueue := make(priorityQueue, 0, len(queries))
 		for _, q := range queries {
 			evt, ok := <-q.results
 			if ok {
