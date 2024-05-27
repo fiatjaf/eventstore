@@ -35,7 +35,7 @@ func (b *BlugeBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch
 		eitherKind := bluge.NewBooleanQuery()
 		eitherKind.SetMinShould(1)
 		for _, kind := range filter.Kinds {
-			kindQ := bluge.NewMatchQuery(strconv.Itoa(kind))
+			kindQ := bluge.NewTermQuery(strconv.Itoa(kind))
 			kindQ.SetField(kindField)
 			eitherKind.AddShould(kindQ)
 		}
@@ -50,7 +50,7 @@ func (b *BlugeBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch
 			if len(pubkey) != 64 {
 				continue
 			}
-			pubkeyQ := bluge.NewMatchQuery(pubkey[56:])
+			pubkeyQ := bluge.NewTermQuery(pubkey[56:])
 			pubkeyQ.SetField(pubkeyField)
 			eitherPubkey.AddShould(pubkeyQ)
 		}
@@ -63,7 +63,7 @@ func (b *BlugeBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch
 		if filter.Since != nil {
 			min = float64(*filter.Since)
 		}
-		max := 0.0
+		max := float64(nostr.Now())
 		if filter.Until != nil {
 			max = float64(*filter.Until)
 		}
