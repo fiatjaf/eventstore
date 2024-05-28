@@ -155,6 +155,7 @@ func (oss *OpensearchStorage) QueryEvents(ctx context.Context, filter nostr.Filt
 		}
 		if ch != nil {
 			close(ch)
+            ch = nil
 		}
 	}()
 
