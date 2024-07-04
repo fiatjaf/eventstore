@@ -52,7 +52,6 @@ func (b *BoltBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (cha
 
 		for _, q := range queries {
 			q := q
-
 			pulled := 0 // this query will be hardcapped at this global limit
 
 			go b.db.View(func(txn *bolt.Tx) error {
@@ -63,14 +62,14 @@ func (b *BoltBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (cha
 
 				c := bucket.Cursor()
 
-				k, v := c.Seek(q.startingPoint)
+				k, _ := c.Seek(q.startingPoint)
 				if k == nil {
-					k, v = c.Last()
+					k, _ = c.Last()
 				} else {
-					k, v = c.Prev()
+					k, _ = c.Prev()
 				}
 
-				for ; k != nil && bytes.HasPrefix(k, q.prefix); k, v = c.Prev() {
+				for ; k != nil && bytes.HasPrefix(k, q.prefix); k, _ = c.Prev() {
 					// "id" indexes don't contain a timestamp
 					if !q.skipTimestamp {
 						createdAt := binary.BigEndian.Uint32(k[len(k)-4:])
@@ -80,7 +79,7 @@ func (b *BoltBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (cha
 					}
 
 					// fetch actual event
-					val := raw.Get(v)
+					val := raw.Get(k[len(k)-8:])
 					evt := &nostr.Event{}
 					if err := nostr_binary.Unmarshal(val, evt); err != nil {
 						log.Printf("bolt: value read error (id %x): %s\n", val[0:32], err)

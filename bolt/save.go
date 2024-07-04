@@ -44,7 +44,7 @@ func (b *BoltBackend) SaveEvent(ctx context.Context, evt *nostr.Event) error {
 
 		for _, km := range getIndexKeysForEvent(evt) {
 			bucket := txn.Bucket(km.bucket)
-			if err := bucket.Put(km.key, seqb); err != nil {
+			if err := bucket.Put(append(km.key, seqb...), nil); err != nil {
 				return err
 			}
 		}

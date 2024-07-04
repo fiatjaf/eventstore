@@ -22,7 +22,7 @@ func (b *BoltBackend) DeleteEvent(ctx context.Context, evt *nostr.Event) error {
 		// calculate all index keys we have for this event and delete them
 		for _, k := range getIndexKeysForEvent(evt) {
 			bucket := txn.Bucket(k.bucket)
-			bucket.Delete(k.key)
+			bucket.Delete(append(k.key, seqb...))
 		}
 
 		// delete the raw event
