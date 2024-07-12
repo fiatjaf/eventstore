@@ -124,6 +124,7 @@ func (ess *ElasticsearchStorage) QueryEvents(ctx context.Context, filter nostr.F
 	if isGetByID(filter) {
 		if evts, err := ess.getByID(filter); err == nil {
 			go func() {
+				defer close(ch)
 				for _, evt := range evts {
 					select {
 					case ch <- evt:
@@ -132,7 +133,6 @@ func (ess *ElasticsearchStorage) QueryEvents(ctx context.Context, filter nostr.F
 					}
 				}
 			}()
-			close(ch)
 		} else {
 			return nil, fmt.Errorf("error getting by id: %w", err)
 		}
