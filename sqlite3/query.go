@@ -151,7 +151,7 @@ func (b SQLite3Backend) queryEventsSql(filter nostr.Filter, doCount bool) (strin
           COUNT(*)
         FROM event WHERE `+
 			strings.Join(conditions, " AND ")+
-			" ORDER BY created_at DESC LIMIT ?")
+			" LIMIT ?")
 	} else {
 		query = sqlx.Rebind(sqlx.BindType("sqlite3"), `SELECT
           id, pubkey, created_at, kind, tags, content, sig
