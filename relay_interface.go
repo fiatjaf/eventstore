@@ -44,7 +44,7 @@ func (w RelayWrapper) Publish(ctx context.Context, evt nostr.Event) error {
 	} else if 30000 <= evt.Kind && evt.Kind < 40000 {
 		// parameterized replaceable event, delete before storing
 		d := evt.Tags.GetFirst([]string{"d", ""})
-		if d != nil {
+		if d == nil {
 			return fmt.Errorf("failed to add event missing d tag for parameterized replacing")
 		}
 		ch, err := w.Store.QueryEvents(ctx, nostr.Filter{Authors: []string{evt.PubKey}, Kinds: []int{evt.Kind}, Tags: nostr.TagMap{"d": []string{d.Value()}}})
