@@ -54,6 +54,7 @@ func (b *SliceStore) QueryEvents(ctx context.Context, filter nostr.Filter) (chan
 			if count == filter.Limit {
 				break
 			}
+
 			if filter.Matches(event) {
 				select {
 				case ch <- event:

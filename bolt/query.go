@@ -9,9 +9,9 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/boltdb/bolt"
 	"github.com/nbd-wtf/go-nostr"
 	nostr_binary "github.com/nbd-wtf/go-nostr/binary"
+	bolt "go.etcd.io/bbolt"
 )
 
 type query struct {
@@ -29,17 +29,31 @@ type queryEvent struct {
 }
 
 func (b *BoltBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (chan *nostr.Event, error) {
+	ch := make(chan *nostr.Event)
+
 	queries, extraFilter, since, err := prepareQueries(filter)
 	if err != nil {
 		return nil, err
 	}
 
-	ch := make(chan *nostr.Event)
+	if filter.Search != "" {
+		close(ch)
+		return ch, nil
+	}
+
+	// max number of events we'll return
+	limit := b.MaxLimit / 4
+	if filter.Limit > 0 && filter.Limit < b.MaxLimit {
+		limit = filter.Limit
+	}
+
 	go func() {
 		defer close(ch)
 
 		for _, q := range queries {
 			q := q
+			pulled := 0 // this query will be hardcapped at this global limit
+
 			go b.db.View(func(txn *bolt.Tx) error {
 				defer close(q.results)
 
@@ -48,54 +62,53 @@ func (b *BoltBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (cha
 
 				c := bucket.Cursor()
 
-				k, v := c.Seek(q.startingPoint)
+				k, _ := c.Seek(q.startingPoint)
 				if k == nil {
-					k, v = c.Last()
+					k, _ = c.Last()
 				} else {
-					k, v = c.Prev()
+					k, _ = c.Prev()
 				}
 
-				for ; k != nil && bytes.HasPrefix(k, q.prefix); k, v = c.Prev() {
+				for ; k != nil && bytes.HasPrefix(k, q.prefix); k, _ = c.Prev() {
 					// "id" indexes don't contain a timestamp
 					if !q.skipTimestamp {
 						createdAt := binary.BigEndian.Uint32(k[len(k)-4:])
 						if createdAt < since {
-							break
+							return nil
 						}
 					}
 
 					// fetch actual event
-					val := raw.Get(v)
+					val := raw.Get(k[len(k)-8:])
 					evt := &nostr.Event{}
 					if err := nostr_binary.Unmarshal(val, evt); err != nil {
 						log.Printf("bolt: value read error (id %x): %s\n", val[0:32], err)
-						break
+						return fmt.Errorf("error: %w", err)
 					}
 
 					// check if this matches the other filters that were not part of the index before yielding
 					if extraFilter == nil || extraFilter.Matches(evt) {
 						select {
 						case q.results <- evt:
+							pulled++
+							if pulled > limit {
+								return nil
+							}
 						case <-ctx.Done():
-							break
+							return nil
 						}
 					}
 				}
+
 				return nil
 			})
-		}
-
-		// max number of events we'll return
-		limit := b.MaxLimit
-		if filter.Limit > 0 && filter.Limit < limit {
-			limit = filter.Limit
 		}
 
 		// receive results and ensure we only return the most recent ones always
 		emittedEvents := 0
 
 		// first pass
-		emitQueue := make(priorityQueue, 0, len(queries)+limit)
+		emitQueue := make(priorityQueue, 0, len(queries))
 		for _, q := range queries {
 			evt, ok := <-q.results
 			if ok {

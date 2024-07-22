@@ -23,24 +23,52 @@ func (w RelayWrapper) Publish(ctx context.Context, evt nostr.Event) error {
 		if err != nil {
 			return fmt.Errorf("failed to query before replacing: %w", err)
 		}
-		if previous := <-ch; previous != nil && isOlder(previous, &evt) {
-			if err := w.Store.DeleteEvent(ctx, previous); err != nil {
-				return fmt.Errorf("failed to delete event for replacing: %w", err)
+		isNewer := true
+		for previous := range ch {
+			if previous == nil {
+				continue
 			}
+			if isOlder(previous, &evt) {
+				if err := w.Store.DeleteEvent(ctx, previous); err != nil {
+					return fmt.Errorf("failed to delete event for replacing: %w", err)
+				}
+			} else {
+				// already, newer event is stored.
+				isNewer = false
+				break
+			}
+		}
+		if !isNewer {
+			return nil
 		}
 	} else if 30000 <= evt.Kind && evt.Kind < 40000 {
 		// parameterized replaceable event, delete before storing
 		d := evt.Tags.GetFirst([]string{"d", ""})
-		if d != nil {
-			ch, err := w.Store.QueryEvents(ctx, nostr.Filter{Authors: []string{evt.PubKey}, Kinds: []int{evt.Kind}, Tags: nostr.TagMap{"d": []string{d.Value()}}})
-			if err != nil {
-				return fmt.Errorf("failed to query before parameterized replacing: %w", err)
+		if d == nil {
+			return fmt.Errorf("failed to add event missing d tag for parameterized replacing")
+		}
+		ch, err := w.Store.QueryEvents(ctx, nostr.Filter{Authors: []string{evt.PubKey}, Kinds: []int{evt.Kind}, Tags: nostr.TagMap{"d": []string{d.Value()}}})
+		if err != nil {
+			return fmt.Errorf("failed to query before parameterized replacing: %w", err)
+		}
+		isNewer := true
+		for previous := range ch {
+			if previous == nil {
+				continue
 			}
-			if previous := <-ch; previous != nil && isOlder(previous, &evt) {
+
+			if !isOlder(previous, &evt) {
 				if err := w.Store.DeleteEvent(ctx, previous); err != nil {
 					return fmt.Errorf("failed to delete event for parameterized replacing: %w", err)
 				}
+			} else {
+				// already, newer event is stored.
+				isNewer = false
+				break
 			}
+		}
+		if !isNewer {
+			return nil
 		}
 	}
 

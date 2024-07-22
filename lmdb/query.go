@@ -18,9 +18,10 @@ type query struct {
 	i             int
 	dbi           lmdb.DBI
 	prefix        []byte
-	startingPoint []byte
 	results       chan *nostr.Event
-	skipTimestamp bool
+	prefixSize    int
+	timestampSize int
+	startingPoint []byte
 }
 
 type queryEvent struct {
@@ -29,17 +30,32 @@ type queryEvent struct {
 }
 
 func (b *LMDBBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (chan *nostr.Event, error) {
+	ch := make(chan *nostr.Event)
+
 	queries, extraFilter, since, err := b.prepareQueries(filter)
 	if err != nil {
 		return nil, err
 	}
 
-	ch := make(chan *nostr.Event)
+	// max number of events we'll return
+	limit := b.MaxLimit / 4
+	if filter.Limit > 0 && filter.Limit < b.MaxLimit {
+		limit = filter.Limit
+	}
+
+	if filter.Search != "" {
+		close(ch)
+		return ch, nil
+	}
+
 	go func() {
 		defer close(ch)
 
 		for _, q := range queries {
 			q := q
+
+			pulled := 0 // this will be hard-capped at the global limit of the query
+
 			go b.lmdbEnv.View(func(txn *lmdb.Txn) error {
 				txn.RawRead = true
 				defer close(q.results)
@@ -70,16 +86,18 @@ func (b *LMDBBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (cha
 
 				for {
 					// we already have a k and a v and an err from the cursor setup, so check and use these
-					if iterr != nil || !bytes.HasPrefix(k, q.prefix) {
+					if iterr != nil ||
+						len(k) != q.prefixSize+q.timestampSize ||
+						!bytes.Equal(k[:q.prefixSize], q.prefix) {
 						// either iteration has errored or we reached the end of this prefix
-						break // stop this cursor and move to the next one
+						return nil
 					}
 
 					// "id" indexes don't contain a timestamp
-					if !q.skipTimestamp {
+					if q.timestampSize == 4 {
 						createdAt := binary.BigEndian.Uint32(k[len(k)-4:])
 						if createdAt < since {
-							break
+							return nil
 						}
 					}
 
@@ -89,45 +107,42 @@ func (b *LMDBBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (cha
 						log.Printf(
 							"lmdb: failed to get %x based on prefix %x, index key %x from raw event store: %s\n",
 							idx, q.prefix, k, err)
-						break
+						return fmt.Errorf("error: %w", err)
 					}
 
 					evt := &nostr.Event{}
 					if err := nostr_binary.Unmarshal(val, evt); err != nil {
 						log.Printf("lmdb: value read error (id %x): %s\n", val[0:32], err)
-						break
+						return fmt.Errorf("error: %w", err)
 					}
 
 					// check if this matches the other filters that were not part of the index before yielding
 					if extraFilter == nil || extraFilter.Matches(evt) {
 						select {
 						case q.results <- evt:
+							pulled++
+							if pulled >= limit {
+								return nil
+							}
 						case <-ctx.Done():
-							break
+							return nil
 						}
 					}
 
 					// move one back (we'll look into k and v and err in the next iteration)
 					k, idx, iterr = cursor.Get(nil, nil, lmdb.Prev)
 				}
-				return nil
 			})
 		}
 		if err != nil {
 			log.Printf("lmdb: error on cursor iteration: %v\n", err)
 		}
 
-		// max number of events we'll return
-		limit := b.MaxLimit
-		if filter.Limit > 0 && filter.Limit < limit {
-			limit = filter.Limit
-		}
-
 		// receive results and ensure we only return the most recent ones always
 		emittedEvents := 0
 
 		// first pass
-		emitQueue := make(priorityQueue, 0, len(queries)+limit)
+		emitQueue := make(priorityQueue, 0, len(queries))
 		for _, q := range queries {
 			evt, ok := <-q.results
 			if ok {
@@ -216,7 +231,7 @@ func (b *LMDBBackend) prepareQueries(filter nostr.Filter) (
 				return nil, nil, 0, fmt.Errorf("invalid id '%s'", idHex)
 			}
 			prefix, _ := hex.DecodeString(idHex[0 : 8*2])
-			queries[i] = query{i: i, dbi: b.indexId, prefix: prefix, skipTimestamp: true}
+			queries[i] = query{i: i, dbi: b.indexId, prefix: prefix, prefixSize: 8, timestampSize: 0}
 		}
 	} else if len(filter.Authors) > 0 {
 		if len(filter.Kinds) == 0 {
@@ -226,7 +241,7 @@ func (b *LMDBBackend) prepareQueries(filter nostr.Filter) (
 					return nil, nil, 0, fmt.Errorf("invalid pubkey '%s'", pubkeyHex)
 				}
 				prefix, _ := hex.DecodeString(pubkeyHex[0 : 8*2])
-				queries[i] = query{i: i, dbi: b.indexPubkey, prefix: prefix}
+				queries[i] = query{i: i, dbi: b.indexPubkey, prefix: prefix, prefixSize: 8, timestampSize: 4}
 			}
 		} else {
 			queries = make([]query, len(filter.Authors)*len(filter.Kinds))
@@ -238,7 +253,7 @@ func (b *LMDBBackend) prepareQueries(filter nostr.Filter) (
 					}
 					pubkey, _ := hex.DecodeString(pubkeyHex[0 : 8*2])
 					prefix := binary.BigEndian.AppendUint16(pubkey, uint16(kind))
-					queries[i] = query{i: i, dbi: b.indexPubkeyKind, prefix: prefix}
+					queries[i] = query{i: i, dbi: b.indexPubkeyKind, prefix: prefix, prefixSize: 10, timestampSize: 4}
 					i++
 				}
 			}
@@ -264,7 +279,7 @@ func (b *LMDBBackend) prepareQueries(filter nostr.Filter) (
 				dbi, k, offset := b.getTagIndexPrefix(value)
 				// remove the last parts part to get just the prefix we want here
 				prefix := k[0:offset]
-				queries[i] = query{i: i, dbi: dbi, prefix: prefix}
+				queries[i] = query{i: i, dbi: dbi, prefix: prefix, prefixSize: len(prefix), timestampSize: 4}
 				i++
 			}
 		}
@@ -273,12 +288,12 @@ func (b *LMDBBackend) prepareQueries(filter nostr.Filter) (
 		for i, kind := range filter.Kinds {
 			prefix := make([]byte, 2)
 			binary.BigEndian.PutUint16(prefix[:], uint16(kind))
-			queries[i] = query{i: i, dbi: b.indexKind, prefix: prefix}
+			queries[i] = query{i: i, dbi: b.indexKind, prefix: prefix, prefixSize: 2, timestampSize: 4}
 		}
 	} else {
 		queries = make([]query, 1)
 		prefix := make([]byte, 0)
-		queries[0] = query{i: 0, dbi: b.indexCreatedAt, prefix: prefix}
+		queries[0] = query{i: 0, dbi: b.indexCreatedAt, prefix: prefix, prefixSize: 0, timestampSize: 4}
 		extraFilter = nil
 	}
 

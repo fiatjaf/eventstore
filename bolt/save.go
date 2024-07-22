@@ -6,10 +6,10 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/boltdb/bolt"
 	"github.com/fiatjaf/eventstore"
 	"github.com/nbd-wtf/go-nostr"
 	nostr_binary "github.com/nbd-wtf/go-nostr/binary"
+	bolt "go.etcd.io/bbolt"
 )
 
 func (b *BoltBackend) SaveEvent(ctx context.Context, evt *nostr.Event) error {
@@ -44,7 +44,7 @@ func (b *BoltBackend) SaveEvent(ctx context.Context, evt *nostr.Event) error {
 
 		for _, km := range getIndexKeysForEvent(evt) {
 			bucket := txn.Bucket(km.bucket)
-			if err := bucket.Put(km.key, seqb); err != nil {
+			if err := bucket.Put(append(km.key, seqb...), nil); err != nil {
 				return err
 			}
 		}

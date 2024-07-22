@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log"
 
@@ -26,12 +27,25 @@ type queryEvent struct {
 	query int
 }
 
+var exit = errors.New("exit")
+
 func (b BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (chan *nostr.Event, error) {
 	ch := make(chan *nostr.Event)
+
+	if filter.Search != "" {
+		close(ch)
+		return ch, nil
+	}
 
 	queries, extraFilter, since, err := prepareQueries(filter)
 	if err != nil {
 		return nil, err
+	}
+
+	// max number of events we'll return
+	limit := b.MaxLimit / 4
+	if filter.Limit > 0 && filter.Limit < b.MaxLimit {
+		limit = filter.Limit
 	}
 
 	go func() {
@@ -40,6 +54,9 @@ func (b BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch
 		// actually iterate
 		for _, q := range queries {
 			q := q
+
+			pulled := 0 // this query will be hardcapped at this global limit
+
 			go b.View(func(txn *badger.Txn) error {
 				// iterate only through keys and in reverse order
 				opts := badger.IteratorOptions{
@@ -78,7 +95,8 @@ func (b BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch
 							idx, q.prefix, key, err)
 						return err
 					}
-					item.Value(func(val []byte) error {
+
+					if err := item.Value(func(val []byte) error {
 						evt := &nostr.Event{}
 						if err := nostr_binary.Unmarshal(val, evt); err != nil {
 							log.Printf("badger: value read error (id %x): %s\n", val[0:32], err)
@@ -87,28 +105,34 @@ func (b BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch
 
 						// check if this matches the other filters that were not part of the index
 						if extraFilter == nil || extraFilter.Matches(evt) {
-							q.results <- evt
+							select {
+							case q.results <- evt:
+								pulled++
+								if pulled > limit {
+									return exit
+								}
+							case <-ctx.Done():
+								return exit
+							}
 						}
 
 						return nil
-					})
+					}); err == exit {
+						return nil
+					} else if err != nil {
+						return err
+					}
 				}
 
 				return nil
 			})
 		}
 
-		// max number of events we'll return
-		limit := b.MaxLimit
-		if filter.Limit > 0 && filter.Limit < limit {
-			limit = filter.Limit
-		}
-
 		// receive results and ensure we only return the most recent ones always
 		emittedEvents := 0
 
 		// first pass
-		emitQueue := make(priorityQueue, 0, len(queries)+limit)
+		emitQueue := make(priorityQueue, 0, len(queries))
 		for _, q := range queries {
 			evt, ok := <-q.results
 			if ok {

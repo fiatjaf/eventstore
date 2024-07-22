@@ -1,10 +1,12 @@
 package bolt
 
 import (
+	"fmt"
 	"sync/atomic"
+	"time"
 
-	"github.com/boltdb/bolt"
 	"github.com/fiatjaf/eventstore"
+	bolt "go.etcd.io/bbolt"
 )
 
 const (
@@ -42,7 +44,18 @@ func (b *BoltBackend) Init() error {
 	}
 
 	// open boltdb
-	db, err := bolt.Open(b.Path, 0644, nil)
+	var db *bolt.DB
+	var err error
+	done := make(chan struct{})
+	go func() {
+		db, err = bolt.Open(b.Path, 0644, nil)
+		done <- struct{}{}
+	}()
+	select {
+	case <-done:
+	case <-time.After(20 * time.Second):
+		return fmt.Errorf("taking too long to open the bolt database at '%s', please make sure that database is not being used elsewhere because there may be a lock in place there", b.Path)
+	}
 	if err != nil {
 		return err
 	}

@@ -6,9 +6,9 @@ import (
 	"encoding/binary"
 	"log"
 
-	"github.com/boltdb/bolt"
 	"github.com/nbd-wtf/go-nostr"
 	nostr_binary "github.com/nbd-wtf/go-nostr/binary"
+	bolt "go.etcd.io/bbolt"
 )
 
 func (b *BoltBackend) CountEvents(ctx context.Context, filter nostr.Filter) (int64, error) {
@@ -35,17 +35,21 @@ func (b *BoltBackend) CountEvents(ctx context.Context, filter nostr.Filter) (int
 					}
 				}
 
-				// fetch actual event
-				val := raw.Get(v)
-				evt := &nostr.Event{}
-				if err := nostr_binary.Unmarshal(val, evt); err != nil {
-					log.Printf("bolt: value read error (id %x): %s\n", val[0:32], err)
-					break
-				}
-
-				// check if this matches the other filters that were not part of the index before yielding
-				if extraFilter == nil || extraFilter.Matches(evt) {
+				if extraFilter == nil {
 					count++
+				} else {
+					// fetch actual event
+					val := raw.Get(v)
+					evt := &nostr.Event{}
+					if err := nostr_binary.Unmarshal(val, evt); err != nil {
+						log.Printf("bolt: value read error (id %x): %s\n", val[0:32], err)
+						break
+					}
+
+					// check if this matches the other filters that were not part of the index before yielding
+					if extraFilter.Matches(evt) {
+						count++
+					}
 				}
 			}
 		}

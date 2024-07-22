@@ -19,7 +19,7 @@ func (b MySQLBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch 
 		return nil, err
 	}
 
-	rows, err := b.DB.Query(query, params...)
+	rows, err := b.DB.QueryContext(ctx, query, params...)
 	if err != nil && err != sql.ErrNoRows {
 		close(ch)
 		return nil, fmt.Errorf("failed to fetch events using query %q: %w", query, err)
@@ -55,7 +55,7 @@ func (b MySQLBackend) CountEvents(ctx context.Context, filter nostr.Filter) (int
 	}
 
 	var count int64
-	if err = b.DB.QueryRow(query, params...).Scan(&count); err != nil && err != sql.ErrNoRows {
+	if err = b.DB.QueryRowContext(ctx, query, params...).Scan(&count); err != nil && err != sql.ErrNoRows {
 		return 0, fmt.Errorf("failed to fetch events using query %q: %w", query, err)
 	}
 	return count, nil
@@ -158,7 +158,7 @@ func (b MySQLBackend) queryEventsSql(filter nostr.Filter, doCount bool) (string,
           COUNT(*)
         FROM event WHERE `+
 			strings.Join(conditions, " AND ")+
-			" ORDER BY created_at DESC LIMIT ?")
+			" LIMIT ?")
 	} else {
 		query = sqlx.Rebind(sqlx.BindType("mysql"), `SELECT
           id, pubkey, created_at, kind, tags, content, sig

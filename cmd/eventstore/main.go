@@ -14,6 +14,7 @@ import (
 	"github.com/fiatjaf/eventstore/mysql"
 	"github.com/fiatjaf/eventstore/postgresql"
 	"github.com/fiatjaf/eventstore/sqlite3"
+	"github.com/fiatjaf/eventstore/strfry"
 	"github.com/urfave/cli/v3"
 )
 
@@ -52,6 +53,8 @@ var app = &cli.Command{
 			case strings.HasPrefix(path, "https://"):
 				// if we ever add something else that uses URLs we'll have to modify this
 				typ = "elasticsearch"
+			case strings.HasSuffix(path, ".conf"):
+				typ = "strfry"
 			default:
 				// try to detect based on the form and names of disk files
 				dbname, err := detect(path)
@@ -102,6 +105,8 @@ var app = &cli.Command{
 			}
 		case "elasticsearch":
 			db = &elasticsearch.ElasticsearchStorage{URL: path}
+		case "strfry":
+			db = &strfry.StrfryBackend{ConfigPath: path}
 		case "":
 			return fmt.Errorf("couldn't determine store type, you can use --type to specify it manually")
 		default:
