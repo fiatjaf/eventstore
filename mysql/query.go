@@ -40,6 +40,7 @@ func (b MySQLBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch 
 			select {
 			case ch <- &evt:
 			case <-ctx.Done():
+				return
 			}
 		}
 	}()

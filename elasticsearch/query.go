@@ -123,10 +123,16 @@ func (ess *ElasticsearchStorage) QueryEvents(ctx context.Context, filter nostr.F
 	// optimization: get by id
 	if isGetByID(filter) {
 		if evts, err := ess.getByID(filter); err == nil {
-			for _, evt := range evts {
-				ch <- evt
-			}
-			close(ch)
+			go func() {
+				defer close(ch)
+				for _, evt := range evts {
+					select {
+					case ch <- evt:
+					case <-ctx.Done():
+						return
+					}
+				}
+			}()
 		} else {
 			return nil, fmt.Errorf("error getting by id: %w", err)
 		}

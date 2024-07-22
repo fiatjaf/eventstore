@@ -37,6 +37,7 @@ func (b SQLite3Backend) QueryEvents(ctx context.Context, filter nostr.Filter) (c
 			select {
 			case ch <- &evt:
 			case <-ctx.Done():
+				return
 			}
 		}
 	}()

@@ -37,6 +37,7 @@ func (b PostgresBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (
 			select {
 			case ch <- &evt:
 			case <-ctx.Done():
+				return
 			}
 		}
 	}()

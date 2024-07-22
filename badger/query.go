@@ -151,7 +151,11 @@ func (b BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch
 		for {
 			// emit latest event in queue
 			latest := emitQueue[0]
-			ch <- latest.Event
+			select {
+			case ch <- latest.Event:
+			case <-ctx.Done():
+				return
+			}
 
 			// stop when reaching limit
 			emittedEvents++
