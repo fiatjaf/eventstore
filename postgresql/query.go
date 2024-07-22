@@ -16,7 +16,7 @@ func (b PostgresBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (
 		return nil, err
 	}
 
-	rows, err := b.DB.Query(query, params...)
+	rows, err := b.DB.QueryContext(ctx, query, params...)
 	if err != nil && err != sql.ErrNoRows {
 		return nil, fmt.Errorf("failed to fetch events using query %q: %w", query, err)
 	}
@@ -34,7 +34,10 @@ func (b PostgresBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (
 				return
 			}
 			evt.CreatedAt = nostr.Timestamp(timestamp)
-			ch <- &evt
+			select {
+			case ch <- &evt:
+			case <-ctx.Done():
+			}
 		}
 	}()
 
@@ -48,7 +51,7 @@ func (b PostgresBackend) CountEvents(ctx context.Context, filter nostr.Filter) (
 	}
 
 	var count int64
-	if err = b.DB.QueryRow(query, params...).Scan(&count); err != nil && err != sql.ErrNoRows {
+	if err = b.DB.QueryRowContext(ctx, query, params...).Scan(&count); err != nil && err != sql.ErrNoRows {
 		return 0, fmt.Errorf("failed to fetch events using query %q: %w", query, err)
 	}
 	return count, nil
