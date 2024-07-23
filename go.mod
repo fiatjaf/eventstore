@@ -8,6 +8,7 @@ require (
 	github.com/blugelabs/bluge v0.2.2
 	github.com/dgraph-io/badger/v4 v4.2.0
 	github.com/elastic/go-elasticsearch/v8 v8.10.1
+	github.com/fiatjaf/cli/v3 v3.0.0-20240723181502-e7dd498b16ae
 	github.com/go-sql-driver/mysql v1.7.1
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/lib/pq v1.10.9
@@ -16,7 +17,6 @@ require (
 	github.com/nbd-wtf/go-nostr v0.34.0
 	github.com/opensearch-project/opensearch-go/v4 v4.0.0
 	github.com/stretchr/testify v1.9.0
-	github.com/urfave/cli/v3 v3.0.0-alpha7
 	go.etcd.io/bbolt v1.3.9
 	golang.org/x/exp v0.0.0-20231006140011-7918f672742d
 	golang.org/x/text v0.15.0
@@ -66,7 +66,6 @@ require (
 	github.com/tidwall/gjson v1.17.0 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
-	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect
 	go.opencensus.io v0.24.0 // indirect
 	golang.org/x/net v0.17.0 // indirect
 	golang.org/x/sys v0.20.0 // indirect

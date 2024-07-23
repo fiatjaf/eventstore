@@ -7,7 +7,7 @@ import (
 	"os"
 
 	"github.com/nbd-wtf/go-nostr"
-	"github.com/urfave/cli/v3"
+	"github.com/fiatjaf/cli/v3"
 )
 
 var queryOrSave = &cli.Command{

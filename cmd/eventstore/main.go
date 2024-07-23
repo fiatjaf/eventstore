@@ -15,7 +15,7 @@ import (
 	"github.com/fiatjaf/eventstore/postgresql"
 	"github.com/fiatjaf/eventstore/sqlite3"
 	"github.com/fiatjaf/eventstore/strfry"
-	"github.com/urfave/cli/v3"
+	"github.com/fiatjaf/cli/v3"
 )
 
 var db eventstore.Store
