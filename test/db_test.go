@@ -12,6 +12,7 @@ import (
 	"github.com/fiatjaf/eventstore/bolt"
 	"github.com/fiatjaf/eventstore/lmdb"
 	"github.com/fiatjaf/eventstore/slicestore"
+	"github.com/fiatjaf/eventstore/sqlite3"
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/stretchr/testify/require"
 )
@@ -38,6 +39,11 @@ func TestBadger(t *testing.T) {
 func TestBolt(t *testing.T) {
 	os.RemoveAll(dbpath + "bolt")
 	runTestOn(t, &bolt.BoltBackend{Path: dbpath + "bolt"})
+}
+
+func TestSQLite(t *testing.T) {
+	os.RemoveAll(dbpath + "sqlite")
+	runTestOn(t, &sqlite3.SQLite3Backend{DatabaseURL: dbpath + "sqlite"})
 }
 
 func runTestOn(t *testing.T, db eventstore.Store) {
