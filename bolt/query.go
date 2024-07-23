@@ -62,24 +62,26 @@ func (b *BoltBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (cha
 
 				c := bucket.Cursor()
 
-				k, _ := c.Seek(q.startingPoint)
-				if k == nil {
-					k, _ = c.Last()
+				key, _ := c.Seek(q.startingPoint)
+				if key == nil {
+					key, _ = c.Last()
 				} else {
-					k, _ = c.Prev()
+					key, _ = c.Prev()
 				}
 
-				for ; k != nil && bytes.HasPrefix(k, q.prefix); k, _ = c.Prev() {
+				for ; key != nil && bytes.HasPrefix(key, q.prefix); key, _ = c.Prev() {
+					idxOffset := len(key) - 4 // this is where the idx actually starts
+
 					// "id" indexes don't contain a timestamp
 					if !q.skipTimestamp {
-						createdAt := binary.BigEndian.Uint32(k[len(k)-4:])
+						createdAt := binary.BigEndian.Uint32(key[idxOffset-4 : idxOffset])
 						if createdAt < since {
-							return nil
+							break
 						}
 					}
 
 					// fetch actual event
-					val := raw.Get(k[len(k)-8:])
+					val := raw.Get(key[len(key)-4:])
 					evt := &nostr.Event{}
 					if err := nostr_binary.Unmarshal(val, evt); err != nil {
 						log.Printf("bolt: value read error (id %x): %s\n", val[0:32], err)
