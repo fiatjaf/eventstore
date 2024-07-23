@@ -1,6 +1,6 @@
 module github.com/fiatjaf/eventstore
 
-go 1.21
+go 1.22
 
 require (
 	github.com/PowerDNS/lmdb-go v1.9.2
