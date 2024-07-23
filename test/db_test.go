@@ -18,7 +18,8 @@ import (
 
 const (
 	dbpath = "/tmp/eventstore-test"
-	sk     = "0000000000000000000000000000000000000000000000000000000000000003"
+	sk3    = "0000000000000000000000000000000000000000000000000000000000000003"
+	sk4    = "0000000000000000000000000000000000000000000000000000000000000004"
 )
 
 func TestSliceStore(t *testing.T) {
@@ -55,6 +56,13 @@ func runTestOn(t *testing.T, db eventstore.Store) {
 			Content:   fmt.Sprintf("hello %d", i),
 			Tags:      nostr.Tags{{"n", fmt.Sprintf("%d", i)}},
 			Kind:      1,
+		}
+		sk := sk3
+		if i%3 == 0 {
+			sk = sk4
+		}
+		if i%2 == 0 {
+			evt.Kind = 9
 		}
 		evt.Sign(sk)
 		allEvents = append(allEvents, evt)
@@ -101,6 +109,55 @@ func runTestOn(t *testing.T, db eventstore.Store) {
 			[]*nostr.Event{allEvents[7], allEvents[9]},
 			results,
 			"id query error")
+	}
+
+	{
+		results, err := w.QuerySync(ctx, nostr.Filter{Kinds: []int{1}})
+		require.NoError(t, err)
+		require.ElementsMatch(t,
+			[]*nostr.Event{allEvents[1], allEvents[3], allEvents[5], allEvents[7], allEvents[9]},
+			results,
+			"kind query error")
+	}
+
+	{
+		results, err := w.QuerySync(ctx, nostr.Filter{Kinds: []int{9}})
+		require.NoError(t, err)
+		require.ElementsMatch(t,
+			[]*nostr.Event{allEvents[0], allEvents[2], allEvents[4], allEvents[6], allEvents[8]},
+			results,
+			"second kind query error")
+	}
+
+	{
+		pk4, _ := nostr.GetPublicKey(sk4)
+		results, err := w.QuerySync(ctx, nostr.Filter{Authors: []string{pk4}})
+		require.NoError(t, err)
+		require.ElementsMatch(t,
+			[]*nostr.Event{allEvents[0], allEvents[3], allEvents[6], allEvents[9]},
+			results,
+			"pubkey query error")
+	}
+
+	{
+		pk3, _ := nostr.GetPublicKey(sk3)
+		results, err := w.QuerySync(ctx, nostr.Filter{Kinds: []int{9}, Authors: []string{pk3}})
+		require.NoError(t, err)
+		require.ElementsMatch(t,
+			[]*nostr.Event{allEvents[2], allEvents[4], allEvents[8]},
+			results,
+			"pubkey kind query error")
+	}
+
+	{
+		pk3, _ := nostr.GetPublicKey(sk3)
+		pk4, _ := nostr.GetPublicKey(sk4)
+		results, err := w.QuerySync(ctx, nostr.Filter{Kinds: []int{9, 5, 7}, Authors: []string{pk3, pk4, pk4[1:] + "a"}})
+		require.NoError(t, err)
+		require.ElementsMatch(t,
+			[]*nostr.Event{allEvents[0], allEvents[2], allEvents[4], allEvents[6], allEvents[8]},
+			results,
+			"2 pubkeys and kind query error")
 	}
 
 	// delete
