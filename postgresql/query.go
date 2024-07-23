@@ -3,6 +3,7 @@ package postgresql
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -62,6 +63,14 @@ func makePlaceHolders(n int) string {
 	return strings.TrimRight(strings.Repeat("?,", n), ",")
 }
 
+var (
+	TooManyIDs       = errors.New("too many ids")
+	TooManyAuthors   = errors.New("too many authors")
+	TooManyKinds     = errors.New("too many kinds")
+	TooManyTagValues = errors.New("too many tag values")
+	EmptyTagSet      = errors.New("empty tag set")
+)
+
 func (b PostgresBackend) queryEventsSql(filter nostr.Filter, doCount bool) (string, []any, error) {
 	var conditions []string
 	var params []any
@@ -69,7 +78,7 @@ func (b PostgresBackend) queryEventsSql(filter nostr.Filter, doCount bool) (stri
 	if len(filter.IDs) > 0 {
 		if len(filter.IDs) > b.QueryIDsLimit {
 			// too many ids, fail everything
-			return "", nil, nil
+			return "", nil, TooManyIDs
 		}
 
 		for _, v := range filter.IDs {
@@ -81,7 +90,7 @@ func (b PostgresBackend) queryEventsSql(filter nostr.Filter, doCount bool) (stri
 	if len(filter.Authors) > 0 {
 		if len(filter.Authors) > b.QueryAuthorsLimit {
 			// too many authors, fail everything
-			return "", nil, nil
+			return "", nil, TooManyAuthors
 		}
 
 		for _, v := range filter.Authors {
@@ -93,7 +102,7 @@ func (b PostgresBackend) queryEventsSql(filter nostr.Filter, doCount bool) (stri
 	if len(filter.Kinds) > 0 {
 		if len(filter.Kinds) > b.QueryKindsLimit {
 			// too many kinds, fail everything
-			return "", nil, nil
+			return "", nil, TooManyKinds
 		}
 
 		for _, v := range filter.Kinds {
@@ -106,7 +115,7 @@ func (b PostgresBackend) queryEventsSql(filter nostr.Filter, doCount bool) (stri
 	for _, values := range filter.Tags {
 		if len(values) == 0 {
 			// any tag set to [] is wrong
-			return "", nil, nil
+			return "", nil, EmptyTagSet
 		}
 
 		// add these tags to the query
@@ -114,7 +123,7 @@ func (b PostgresBackend) queryEventsSql(filter nostr.Filter, doCount bool) (stri
 
 		if len(tagQuery) > b.QueryTagsLimit {
 			// too many tags, fail everything
-			return "", nil, nil
+			return "", nil, TooManyTagValues
 		}
 	}
 

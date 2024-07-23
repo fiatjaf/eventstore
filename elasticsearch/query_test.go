@@ -12,7 +12,7 @@ import (
 func TestQuery(t *testing.T) {
 	now := nostr.Now()
 	yesterday := now - 60*60*24
-	filter := &nostr.Filter{
+	filter := nostr.Filter{
 		IDs:   []string{"abc", "123", "971b9489b4fd4e41a85951607922b982d981fa9d55318bc304f21f390721404c"},
 		Kinds: []int{0, 1},
 		Tags: nostr.TagMap{

@@ -1,7 +1,6 @@
 package postgresql
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
 	"testing"
@@ -19,10 +18,10 @@ var defaultBackend = PostgresBackend{
 }
 
 func TestQueryEventsSql(t *testing.T) {
-	var tests = []struct {
+	tests := []struct {
 		name    string
 		backend PostgresBackend
-		filter  *nostr.Filter
+		filter  nostr.Filter
 		query   string
 		params  []any
 		err     error
@@ -30,7 +29,7 @@ func TestQueryEventsSql(t *testing.T) {
 		{
 			name:    "empty filter",
 			backend: defaultBackend,
-			filter:  &nostr.Filter{},
+			filter:  nostr.Filter{},
 			query:   "SELECT id, pubkey, created_at, kind, tags, content, sig FROM event WHERE true ORDER BY created_at DESC LIMIT $1",
 			params:  []any{100},
 			err:     nil,
@@ -38,7 +37,7 @@ func TestQueryEventsSql(t *testing.T) {
 		{
 			name:    "valid filter limit",
 			backend: defaultBackend,
-			filter: &nostr.Filter{
+			filter: nostr.Filter{
 				Limit: 50,
 			},
 			query:  "SELECT id, pubkey, created_at, kind, tags, content, sig FROM event WHERE true ORDER BY created_at DESC LIMIT $1",
@@ -48,7 +47,7 @@ func TestQueryEventsSql(t *testing.T) {
 		{
 			name:    "too large filter limit",
 			backend: defaultBackend,
-			filter: &nostr.Filter{
+			filter: nostr.Filter{
 				Limit: 2000,
 			},
 			query:  "SELECT id, pubkey, created_at, kind, tags, content, sig FROM event WHERE true ORDER BY created_at DESC LIMIT $1",
@@ -58,142 +57,96 @@ func TestQueryEventsSql(t *testing.T) {
 		{
 			name:    "ids filter",
 			backend: defaultBackend,
-			filter: &nostr.Filter{
+			filter: nostr.Filter{
 				IDs: []string{"083ec57f36a7b39ab98a57bedab4f85355b2ee89e4b205bed58d7c3ef9edd294"},
 			},
-			query: `SELECT id, pubkey, created_at, kind, tags, content, sig 
-			FROM event 
-			WHERE (id LIKE '083ec57f36a7b39ab98a57bedab4f85355b2ee89e4b205bed58d7c3ef9edd294%') 
-			ORDER BY created_at DESC LIMIT $1`,
-			params: []any{100},
+			query: `SELECT id, pubkey, created_at, kind, tags, content, sig
+			FROM event
+			WHERE id IN ($1)
+			ORDER BY created_at DESC LIMIT $2`,
+			params: []any{"083ec57f36a7b39ab98a57bedab4f85355b2ee89e4b205bed58d7c3ef9edd294", 100},
 			err:    nil,
 		},
 		{
 			name:    "kind filter",
 			backend: defaultBackend,
-			filter: &nostr.Filter{
+			filter: nostr.Filter{
 				Kinds: []int{1, 2, 3},
 			},
-			query: `SELECT id, pubkey, created_at, kind, tags, content, sig 
-			FROM event 
-			WHERE kind IN(1,2,3) 
-			ORDER BY created_at DESC LIMIT $1`,
-			params: []any{100},
+			query: `SELECT id, pubkey, created_at, kind, tags, content, sig
+			FROM event
+			WHERE kind IN($1,$2,$3)
+			ORDER BY created_at DESC LIMIT $4`,
+			params: []any{1, 2, 3, 100},
 			err:    nil,
 		},
 		{
 			name:    "authors filter",
 			backend: defaultBackend,
-			filter: &nostr.Filter{
+			filter: nostr.Filter{
 				Authors: []string{"7bdef7bdebb8721f77927d0e77c66059360fa62371fdf15f3add93923a613229"},
 			},
-			query: `SELECT id, pubkey, created_at, kind, tags, content, sig 
-			FROM event 
-			WHERE (pubkey LIKE '7bdef7bdebb8721f77927d0e77c66059360fa62371fdf15f3add93923a613229%') 
-			ORDER BY created_at DESC LIMIT $1`,
-			params: []any{100},
+			query: `SELECT id, pubkey, created_at, kind, tags, content, sig
+			FROM event
+			WHERE pubkey IN ($1)
+			ORDER BY created_at DESC LIMIT $2`,
+			params: []any{"7bdef7bdebb8721f77927d0e77c66059360fa62371fdf15f3add93923a613229", 100},
 			err:    nil,
 		},
 		// errors
 		{
-			name:    "nil filter",
-			backend: defaultBackend,
-			filter:  nil,
-			query:   "",
-			params:  nil,
-			err:     fmt.Errorf("filter cannot be null"),
-		},
-		{
 			name:    "too many ids",
 			backend: defaultBackend,
-			filter: &nostr.Filter{
+			filter: nostr.Filter{
 				IDs: strSlice(501),
 			},
 			query:  "",
 			params: nil,
-			// REVIEW: should return error
-			err: nil,
-		},
-		{
-			name:    "invalid ids",
-			backend: defaultBackend,
-			filter: &nostr.Filter{
-				IDs: []string{"stuff"},
-			},
-			query:  "",
-			params: nil,
-			// REVIEW: should return error
-			err: nil,
+			err:    TooManyIDs,
 		},
 		{
 			name:    "too many authors",
 			backend: defaultBackend,
-			filter: &nostr.Filter{
+			filter: nostr.Filter{
 				Authors: strSlice(501),
 			},
 			query:  "",
 			params: nil,
-			// REVIEW: should return error
-			err: nil,
-		},
-		{
-			name:    "invalid authors",
-			backend: defaultBackend,
-			filter: &nostr.Filter{
-				Authors: []string{"stuff"},
-			},
-			query:  "",
-			params: nil,
-			// REVIEW: should return error
-			err: nil,
+			err:    TooManyAuthors,
 		},
 		{
 			name:    "too many kinds",
 			backend: defaultBackend,
-			filter: &nostr.Filter{
+			filter: nostr.Filter{
 				Kinds: intSlice(11),
 			},
 			query:  "",
 			params: nil,
-			// REVIEW: should return error
-			err: nil,
-		},
-		{
-			name:    "no kinds",
-			backend: defaultBackend,
-			filter: &nostr.Filter{
-				Kinds: []int{},
-			},
-			query:  "",
-			params: nil,
-			// REVIEW: should return error
-			err: nil,
+			err:    TooManyKinds,
 		},
 		{
 			name:    "tags of empty array",
 			backend: defaultBackend,
-			filter: &nostr.Filter{
+			filter: nostr.Filter{
 				Tags: nostr.TagMap{
 					"#e": []string{},
 				},
 			},
 			query:  "",
 			params: nil,
-			// REVIEW: should return error
-			err: nil,
+			err:    EmptyTagSet,
 		},
 		{
 			name:    "too many tag values",
 			backend: defaultBackend,
-			filter: &nostr.Filter{
+			filter: nostr.Filter{
 				Tags: nostr.TagMap{
 					"#e": strSlice(11),
 				},
 			},
 			query:  "",
 			params: nil,
-			// REVIEW: should return error
-			err: nil,
+			err:    TooManyTagValues,
 		},
 	}
 
@@ -232,10 +185,10 @@ func strSlice(n int) []string {
 }
 
 func TestCountEventsSql(t *testing.T) {
-	var tests = []struct {
+	tests := []struct {
 		name    string
 		backend PostgresBackend
-		filter  *nostr.Filter
+		filter  nostr.Filter
 		query   string
 		params  []any
 		err     error
@@ -243,7 +196,7 @@ func TestCountEventsSql(t *testing.T) {
 		{
 			name:    "empty filter",
 			backend: defaultBackend,
-			filter:  &nostr.Filter{},
+			filter:  nostr.Filter{},
 			query:   "SELECT COUNT(*) FROM event WHERE true ORDER BY created_at DESC LIMIT $1",
 			params:  []any{100},
 			err:     nil,
@@ -251,12 +204,12 @@ func TestCountEventsSql(t *testing.T) {
 		{
 			name:    "ids filter",
 			backend: defaultBackend,
-			filter: &nostr.Filter{
+			filter: nostr.Filter{
 				IDs: []string{"083ec57f36a7b39ab98a57bedab4f85355b2ee89e4b205bed58d7c3ef9edd294"},
 			},
 			query: `SELECT COUNT(*)
-			FROM event 
-			WHERE (id LIKE '083ec57f36a7b39ab98a57bedab4f85355b2ee89e4b205bed58d7c3ef9edd294%') 
+			FROM event
+			WHERE (id LIKE '083ec57f36a7b39ab98a57bedab4f85355b2ee89e4b205bed58d7c3ef9edd294%')
 			ORDER BY created_at DESC LIMIT $1`,
 			params: []any{100},
 			err:    nil,
@@ -264,12 +217,12 @@ func TestCountEventsSql(t *testing.T) {
 		{
 			name:    "kind filter",
 			backend: defaultBackend,
-			filter: &nostr.Filter{
+			filter: nostr.Filter{
 				Kinds: []int{1, 2, 3},
 			},
 			query: `SELECT COUNT(*)
-			FROM event 
-			WHERE kind IN(1,2,3) 
+			FROM event
+			WHERE kind IN(1,2,3)
 			ORDER BY created_at DESC LIMIT $1`,
 			params: []any{100},
 			err:    nil,
@@ -277,116 +230,70 @@ func TestCountEventsSql(t *testing.T) {
 		{
 			name:    "authors filter",
 			backend: defaultBackend,
-			filter: &nostr.Filter{
+			filter: nostr.Filter{
 				Authors: []string{"7bdef7bdebb8721f77927d0e77c66059360fa62371fdf15f3add93923a613229"},
 			},
 			query: `SELECT COUNT(*)
-			FROM event 
-			WHERE (pubkey LIKE '7bdef7bdebb8721f77927d0e77c66059360fa62371fdf15f3add93923a613229%') 
+			FROM event
+			WHERE (pubkey LIKE '7bdef7bdebb8721f77927d0e77c66059360fa62371fdf15f3add93923a613229%')
 			ORDER BY created_at DESC LIMIT $1`,
 			params: []any{100},
 			err:    nil,
 		},
 		// errors
 		{
-			name:    "nil filter",
-			backend: defaultBackend,
-			filter:  nil,
-			query:   "",
-			params:  nil,
-			err:     fmt.Errorf("filter cannot be null"),
-		},
-		{
 			name:    "too many ids",
 			backend: defaultBackend,
-			filter: &nostr.Filter{
+			filter: nostr.Filter{
 				IDs: strSlice(501),
 			},
 			query:  "",
 			params: nil,
-			// REVIEW: should return error
-			err: nil,
-		},
-		{
-			name:    "invalid ids",
-			backend: defaultBackend,
-			filter: &nostr.Filter{
-				IDs: []string{"stuff"},
-			},
-			query:  "",
-			params: nil,
-			// REVIEW: should return error
-			err: nil,
+			err:    TooManyIDs,
 		},
 		{
 			name:    "too many authors",
 			backend: defaultBackend,
-			filter: &nostr.Filter{
+			filter: nostr.Filter{
 				Authors: strSlice(501),
 			},
 			query:  "",
 			params: nil,
-			// REVIEW: should return error
-			err: nil,
-		},
-		{
-			name:    "invalid authors",
-			backend: defaultBackend,
-			filter: &nostr.Filter{
-				Authors: []string{"stuff"},
-			},
-			query:  "",
-			params: nil,
-			// REVIEW: should return error
-			err: nil,
+			err:    TooManyAuthors,
 		},
 		{
 			name:    "too many kinds",
 			backend: defaultBackend,
-			filter: &nostr.Filter{
+			filter: nostr.Filter{
 				Kinds: intSlice(11),
 			},
 			query:  "",
 			params: nil,
-			// REVIEW: should return error
-			err: nil,
-		},
-		{
-			name:    "no kinds",
-			backend: defaultBackend,
-			filter: &nostr.Filter{
-				Kinds: []int{},
-			},
-			query:  "",
-			params: nil,
-			// REVIEW: should return error
-			err: nil,
+			err:    TooManyKinds,
 		},
 		{
 			name:    "tags of empty array",
 			backend: defaultBackend,
-			filter: &nostr.Filter{
+			filter: nostr.Filter{
 				Tags: nostr.TagMap{
 					"#e": []string{},
 				},
 			},
 			query:  "",
 			params: nil,
-			// REVIEW: should return error
-			err: nil,
+			err:    EmptyTagSet,
 		},
 		{
 			name:    "too many tag values",
 			backend: defaultBackend,
-			filter: &nostr.Filter{
+			filter: nostr.Filter{
 				Tags: nostr.TagMap{
 					"#e": strSlice(11),
 				},
 			},
 			query:  "",
 			params: nil,
-			// REVIEW: should return error
-			err: nil,
+			err:    TooManyTagValues,
 		},
 	}
 
