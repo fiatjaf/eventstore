@@ -24,7 +24,7 @@ type Store interface {
 }
 ```
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/fiatjaf/eventstore.svg)](https://pkg.go.dev/github.com/fiatjaf/eventstore)
+[![Go Reference](https://pkg.go.dev/badge/github.com/fiatjaf/eventstore.svg)](https://pkg.go.dev/github.com/fiatjaf/eventstore) [![Run Tests](https://github.com/fiatjaf/eventstore/actions/workflows/test.yml/badge.svg)](https://github.com/fiatjaf/eventstore/actions/workflows/test.yml)
 
 ## command-line tool
 
