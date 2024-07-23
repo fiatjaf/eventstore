@@ -9,8 +9,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install libsecp256k1-dev
-        run: sudo apt-get install libsecp256k1-dev
+      - run: sudo apt-get install liblmdb-dev
 
       - uses: actions/setup-go@v5
         with:
