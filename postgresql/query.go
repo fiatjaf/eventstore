@@ -171,7 +171,7 @@ func (b PostgresBackend) queryEventsSql(filter nostr.Filter, doCount bool) (stri
           id, pubkey, created_at, kind, tags, content, sig
         FROM event WHERE `+
 			strings.Join(conditions, " AND ")+
-			" ORDER BY created_at DESC LIMIT ?")
+			" ORDER BY created_at DESC, id LIMIT ?")
 	}
 
 	return query, params, nil

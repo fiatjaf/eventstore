@@ -38,7 +38,7 @@ func (b *PostgresBackend) AfterSave(evt *nostr.Event) {
 	// delete all but the 100 most recent ones for each key
 	b.DB.Exec(`DELETE FROM event WHERE pubkey = $1 AND kind = $2 AND created_at < (
       SELECT created_at FROM event WHERE pubkey = $1
-      ORDER BY created_at DESC OFFSET 100 LIMIT 1
+      ORDER BY created_at DESC, id OFFSET 100 LIMIT 1
     )`, evt.PubKey, evt.Kind)
 }
 

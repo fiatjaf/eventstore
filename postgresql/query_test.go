@@ -30,7 +30,7 @@ func TestQueryEventsSql(t *testing.T) {
 			name:    "empty filter",
 			backend: defaultBackend,
 			filter:  nostr.Filter{},
-			query:   "SELECT id, pubkey, created_at, kind, tags, content, sig FROM event WHERE true ORDER BY created_at DESC LIMIT $1",
+			query:   "SELECT id, pubkey, created_at, kind, tags, content, sig FROM event WHERE true ORDER BY created_at DESC, id LIMIT $1",
 			params:  []any{100},
 			err:     nil,
 		},
@@ -40,7 +40,7 @@ func TestQueryEventsSql(t *testing.T) {
 			filter: nostr.Filter{
 				Limit: 50,
 			},
-			query:  "SELECT id, pubkey, created_at, kind, tags, content, sig FROM event WHERE true ORDER BY created_at DESC LIMIT $1",
+			query:  "SELECT id, pubkey, created_at, kind, tags, content, sig FROM event WHERE true ORDER BY created_at DESC, id LIMIT $1",
 			params: []any{50},
 			err:    nil,
 		},
@@ -50,7 +50,7 @@ func TestQueryEventsSql(t *testing.T) {
 			filter: nostr.Filter{
 				Limit: 2000,
 			},
-			query:  "SELECT id, pubkey, created_at, kind, tags, content, sig FROM event WHERE true ORDER BY created_at DESC LIMIT $1",
+			query:  "SELECT id, pubkey, created_at, kind, tags, content, sig FROM event WHERE true ORDER BY created_at DESC, id LIMIT $1",
 			params: []any{100},
 			err:    nil,
 		},
@@ -63,7 +63,7 @@ func TestQueryEventsSql(t *testing.T) {
 			query: `SELECT id, pubkey, created_at, kind, tags, content, sig
 			FROM event
 			WHERE id IN ($1)
-			ORDER BY created_at DESC LIMIT $2`,
+			ORDER BY created_at DESC, id LIMIT $2`,
 			params: []any{"083ec57f36a7b39ab98a57bedab4f85355b2ee89e4b205bed58d7c3ef9edd294", 100},
 			err:    nil,
 		},
@@ -76,7 +76,7 @@ func TestQueryEventsSql(t *testing.T) {
 			query: `SELECT id, pubkey, created_at, kind, tags, content, sig
 			FROM event
 			WHERE kind IN($1,$2,$3)
-			ORDER BY created_at DESC LIMIT $4`,
+			ORDER BY created_at DESC, id LIMIT $4`,
 			params: []any{1, 2, 3, 100},
 			err:    nil,
 		},
@@ -89,7 +89,7 @@ func TestQueryEventsSql(t *testing.T) {
 			query: `SELECT id, pubkey, created_at, kind, tags, content, sig
 			FROM event
 			WHERE pubkey IN ($1)
-			ORDER BY created_at DESC LIMIT $2`,
+			ORDER BY created_at DESC, id LIMIT $2`,
 			params: []any{"7bdef7bdebb8721f77927d0e77c66059360fa62371fdf15f3add93923a613229", 100},
 			err:    nil,
 		},
