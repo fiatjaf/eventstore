@@ -134,7 +134,7 @@ func (oss *OpensearchStorage) QueryEvents(ctx context.Context, filter nostr.Filt
 			Body:    bytes.NewReader(dsl),
 			Params: opensearchapi.SearchParams{
 				Size: opensearchapi.ToPointer(limit),
-				Sort: []string{"event.created_at:desc"},
+				Sort: []string{"event.created_at:desc", "event.id"},
 			},
 		},
 	)
@@ -155,7 +155,7 @@ func (oss *OpensearchStorage) QueryEvents(ctx context.Context, filter nostr.Filt
 		}
 		if ch != nil {
 			close(ch)
-            ch = nil
+			ch = nil
 		}
 	}()
 
