@@ -1,4 +1,4 @@
-module github.com/fiatjaf/eventstore
+module github.com/TheRebelOfBabylon/eventstore
 
 go 1.22
 
@@ -7,8 +7,10 @@ require (
 	github.com/aquasecurity/esquery v0.2.0
 	github.com/blugelabs/bluge v0.2.2
 	github.com/dgraph-io/badger/v4 v4.2.0
+	github.com/edgedb/edgedb-go v0.17.2
 	github.com/elastic/go-elasticsearch/v8 v8.10.1
 	github.com/fiatjaf/cli/v3 v3.0.0-20240723181502-e7dd498b16ae
+	github.com/fiatjaf/eventstore v0.7.1
 	github.com/go-sql-driver/mysql v1.7.1
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/lib/pq v1.10.9
@@ -45,7 +47,6 @@ require (
 	github.com/dgraph-io/ristretto v0.1.1 // indirect
 	github.com/dgryski/go-metro v0.0.0-20211217172704-adc40b04c140 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
-	github.com/edgedb/edgedb-go v0.17.2 // indirect
 	github.com/elastic/elastic-transport-go/v8 v8.3.0 // indirect
 	github.com/elastic/go-elasticsearch/v7 v7.17.10 // indirect
 	github.com/fatih/structs v1.1.0 // indirect
@@ -60,7 +61,7 @@ require (
 	github.com/google/flatbuffers v23.5.26+incompatible // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/klauspost/compress v1.17.8 // indirect
-	github.com/kr/text v0.2.0 // indirect
+	github.com/kr/pretty v0.2.1 // indirect
 	github.com/mschoch/smat v0.2.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
@@ -78,6 +79,5 @@ require (
 	golang.org/x/sys v0.20.0 // indirect
 	golang.org/x/tools v0.14.0 // indirect
 	google.golang.org/protobuf v1.31.0 // indirect
-	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
