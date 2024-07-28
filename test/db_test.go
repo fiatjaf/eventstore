@@ -7,10 +7,12 @@ import (
 	"slices"
 	"testing"
 
+	embeddedpostgres "github.com/fergusstrange/embedded-postgres"
 	"github.com/fiatjaf/eventstore"
 	"github.com/fiatjaf/eventstore/badger"
 	"github.com/fiatjaf/eventstore/bolt"
 	"github.com/fiatjaf/eventstore/lmdb"
+	"github.com/fiatjaf/eventstore/postgresql"
 	"github.com/fiatjaf/eventstore/slicestore"
 	"github.com/fiatjaf/eventstore/sqlite3"
 	"github.com/nbd-wtf/go-nostr"
@@ -45,6 +47,17 @@ func TestBolt(t *testing.T) {
 func TestSQLite(t *testing.T) {
 	os.RemoveAll(dbpath + "sqlite")
 	runTestOn(t, &sqlite3.SQLite3Backend{DatabaseURL: dbpath + "sqlite"})
+}
+
+func TestPostgres(t *testing.T) {
+	postgres := embeddedpostgres.NewDatabase()
+	err := postgres.Start()
+	if err != nil {
+		t.Fatalf("failed to start embedded postgres: %s", err)
+		return
+	}
+	defer postgres.Stop()
+	runTestOn(t, &postgresql.PostgresBackend{DatabaseURL: "postgres://postgres:postgres@:5432/postgres?sslmode=disable"})
 }
 
 func runTestOn(t *testing.T, db eventstore.Store) {

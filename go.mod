@@ -8,6 +8,7 @@ require (
 	github.com/blugelabs/bluge v0.2.2
 	github.com/dgraph-io/badger/v4 v4.2.0
 	github.com/elastic/go-elasticsearch/v8 v8.10.1
+	github.com/fergusstrange/embedded-postgres v1.28.0
 	github.com/fiatjaf/cli/v3 v3.0.0-20240723181502-e7dd498b16ae
 	github.com/go-sql-driver/mysql v1.7.1
 	github.com/jmoiron/sqlx v1.3.5
@@ -66,6 +67,7 @@ require (
 	github.com/tidwall/gjson v1.17.0 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
+	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8 // indirect
 	go.opencensus.io v0.24.0 // indirect
 	golang.org/x/net v0.17.0 // indirect
 	golang.org/x/sys v0.20.0 // indirect
