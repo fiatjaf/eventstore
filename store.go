@@ -24,3 +24,7 @@ type Store interface {
 	// SaveEvent is called once Relay.AcceptEvent reports true.
 	SaveEvent(context.Context, *nostr.Event) error
 }
+
+type Counter interface {
+	CountEvents(context.Context, nostr.Filter) (int64, error)
+}
