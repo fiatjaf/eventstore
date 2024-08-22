@@ -1,8 +1,9 @@
 module github.com/fiatjaf/eventstore
 
-go 1.22
+go 1.23.0
 
 require (
+	fiatjaf.com/lib v0.1.1
 	github.com/PowerDNS/lmdb-go v1.9.2
 	github.com/aquasecurity/esquery v0.2.0
 	github.com/blugelabs/bluge v0.2.2
