@@ -22,10 +22,8 @@ func (b *BoltBackend) DeleteEvent(ctx context.Context, evt *nostr.Event) error {
 			return nil
 		}
 
+		// seqb is the key where this event is stored at bucketRaw
 		seqb := key[8:]
-		if seqb == nil {
-			return nil
-		}
 
 		// calculate all index keys we have for this event and delete them
 		for _, k := range getIndexKeysForEvent(evt) {

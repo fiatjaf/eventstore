@@ -36,7 +36,11 @@ func (b *BoltBackend) SaveEvent(ctx context.Context, evt *nostr.Event) error {
 
 		// raw event store
 		raw := txn.Bucket(bucketRaw)
-		seq, _ := raw.NextSequence()
+		seq, err := raw.NextSequence()
+		if err != nil {
+			return fmt.Errorf("failed to get sequence when saving: %w", err)
+		}
+
 		seqb := binary.BigEndian.AppendUint32(nil, uint32(seq))
 		if err := raw.Put(seqb, bin); err != nil {
 			return err
