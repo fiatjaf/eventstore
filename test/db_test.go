@@ -10,7 +10,6 @@ import (
 	embeddedpostgres "github.com/fergusstrange/embedded-postgres"
 	"github.com/fiatjaf/eventstore"
 	"github.com/fiatjaf/eventstore/badger"
-	"github.com/fiatjaf/eventstore/bolt"
 	"github.com/fiatjaf/eventstore/lmdb"
 	"github.com/fiatjaf/eventstore/postgresql"
 	"github.com/fiatjaf/eventstore/slicestore"
@@ -37,11 +36,6 @@ func TestLMDB(t *testing.T) {
 func TestBadger(t *testing.T) {
 	os.RemoveAll(dbpath + "badger")
 	runTestOn(t, &badger.BadgerBackend{Path: dbpath + "badger"})
-}
-
-func TestBolt(t *testing.T) {
-	os.RemoveAll(dbpath + "bolt")
-	runTestOn(t, &bolt.BoltBackend{Path: dbpath + "bolt"})
 }
 
 func TestSQLite(t *testing.T) {
