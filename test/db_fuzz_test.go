@@ -9,7 +9,6 @@ import (
 	embeddedpostgres "github.com/fergusstrange/embedded-postgres"
 	"github.com/fiatjaf/eventstore"
 	"github.com/fiatjaf/eventstore/badger"
-	"github.com/fiatjaf/eventstore/bolt"
 	"github.com/fiatjaf/eventstore/lmdb"
 	"github.com/fiatjaf/eventstore/postgresql"
 	"github.com/fiatjaf/eventstore/slicestore"
@@ -30,11 +29,6 @@ func FuzzLMDB(f *testing.F) {
 func FuzzBadger(f *testing.F) {
 	os.RemoveAll(dbpath + "badger")
 	runFuzzOn(f, &badger.BadgerBackend{Path: dbpath + "badger"})
-}
-
-func FuzzBolt(f *testing.F) {
-	os.RemoveAll(dbpath + "bolt")
-	runFuzzOn(f, &bolt.BoltBackend{Path: dbpath + "bolt"})
 }
 
 func FuzzSQLite(f *testing.F) {
