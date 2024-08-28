@@ -38,7 +38,7 @@ func getTagIndexPrefix(tagValue string) ([]byte, int) {
 	return k, offset
 }
 
-func getIndexKeysForEvent(evt *nostr.Event, idx []byte) [][]byte {
+func (b BadgerBackend) getIndexKeysForEvent(evt *nostr.Event, idx []byte) [][]byte {
 	keys := make([][]byte, 0, 18)
 
 	// indexes
@@ -86,14 +86,25 @@ func getIndexKeysForEvent(evt *nostr.Event, idx []byte) [][]byte {
 	}
 
 	// ~ by tagvalue+date
+	customIndex := b.IndexLongerTag != nil
+	customSkip := b.SkipIndexingTag != nil
+
 	for i, tag := range evt.Tags {
 		if len(tag) < 2 || len(tag[0]) != 1 || len(tag[1]) == 0 || len(tag[1]) > 100 {
-			// not indexable
-			continue
+			if !customIndex || !b.IndexLongerTag(evt, tag[0], tag[1]) {
+				// not indexable
+				continue
+			}
 		}
+
 		firstIndex := slices.IndexFunc(evt.Tags, func(t nostr.Tag) bool { return len(t) >= 2 && t[1] == tag[1] })
 		if firstIndex != i {
 			// duplicate
+			continue
+		}
+
+		if customSkip && b.SkipIndexingTag(evt, tag[0], tag[1]) {
+			// purposefully skipped
 			continue
 		}
 

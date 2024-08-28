@@ -6,6 +6,7 @@ import (
 
 	"github.com/dgraph-io/badger/v4"
 	"github.com/fiatjaf/eventstore"
+	"github.com/nbd-wtf/go-nostr"
 )
 
 const (
@@ -26,6 +27,11 @@ var _ eventstore.Store = (*BadgerBackend)(nil)
 type BadgerBackend struct {
 	Path     string
 	MaxLimit int
+
+	// Experimental
+	SkipIndexingTag func(event *nostr.Event, tagName string, tagValue string) bool
+	// Experimental
+	IndexLongerTag func(event *nostr.Event, tagName string, tagValue string) bool
 
 	*badger.DB
 	seq *badger.Sequence
