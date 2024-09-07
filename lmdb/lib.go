@@ -19,6 +19,7 @@ var _ eventstore.Store = (*LMDBBackend)(nil)
 type LMDBBackend struct {
 	Path     string
 	MaxLimit int
+	MapSize int
 
 	lmdbEnv *lmdb.Env
 
@@ -49,7 +50,12 @@ func (b *LMDBBackend) Init() error {
 
 	env.SetMaxDBs(10)
 	env.SetMaxReaders(1000)
-	env.SetMapSize(1 << 38) // ~273GB
+	if b.MapSize == 0 {
+		env.SetMapSize(1 << 38) // ~273GB
+	} else {
+		env.SetMapSize(b.MapSize)
+		fmt.Printf("MapSize: %d\n", b.MapSize)
+	}
 
 	// create directory if it doesn't exist and open it
 	if err := os.MkdirAll(b.Path, 0755); err != nil {
