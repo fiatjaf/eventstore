@@ -19,7 +19,7 @@ var _ eventstore.Store = (*LMDBBackend)(nil)
 type LMDBBackend struct {
 	Path     string
 	MaxLimit int
-	MapSize int
+	MapSize int64
 
 	lmdbEnv *lmdb.Env
 
