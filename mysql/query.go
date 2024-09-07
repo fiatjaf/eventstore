@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/fiatjaf/eventstore"
 	"github.com/jmoiron/sqlx"
 	"github.com/nbd-wtf/go-nostr"
 )
@@ -61,10 +62,6 @@ func (b MySQLBackend) CountEvents(ctx context.Context, filter nostr.Filter) (int
 	return count, nil
 }
 
-func makePlaceHolders(n int) string {
-	return strings.TrimRight(strings.Repeat("?,", n), ",")
-}
-
 func (b MySQLBackend) queryEventsSql(filter nostr.Filter, doCount bool) (string, []any, error) {
 	var conditions []string
 	var params []any
@@ -78,7 +75,7 @@ func (b MySQLBackend) queryEventsSql(filter nostr.Filter, doCount bool) (string,
 		for _, v := range filter.IDs {
 			params = append(params, v)
 		}
-		conditions = append(conditions, ` id IN (`+makePlaceHolders(len(filter.IDs))+`)`)
+		conditions = append(conditions, ` id IN (`+eventstore.MakePlaceHolders(len(filter.IDs))+`)`)
 	}
 
 	if len(filter.Authors) > 0 {
@@ -90,7 +87,7 @@ func (b MySQLBackend) queryEventsSql(filter nostr.Filter, doCount bool) (string,
 		for _, v := range filter.Authors {
 			params = append(params, v)
 		}
-		conditions = append(conditions, ` pubkey IN (`+makePlaceHolders(len(filter.IDs))+`)`)
+		conditions = append(conditions, ` pubkey IN (`+eventstore.MakePlaceHolders(len(filter.Authors))+`)`)
 	}
 
 	if len(filter.Kinds) > 0 {
@@ -102,7 +99,7 @@ func (b MySQLBackend) queryEventsSql(filter nostr.Filter, doCount bool) (string,
 		for _, v := range filter.Kinds {
 			params = append(params, v)
 		}
-		conditions = append(conditions, `kind IN (`+makePlaceHolders(len(filter.Kinds))+`)`)
+		conditions = append(conditions, `kind IN (`+eventstore.MakePlaceHolders(len(filter.Kinds))+`)`)
 	}
 
 	tagQuery := make([]string, 0, 1)

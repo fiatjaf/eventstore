@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/fiatjaf/eventstore"
 	"github.com/jmoiron/sqlx"
 	"github.com/nbd-wtf/go-nostr"
 )
@@ -59,10 +60,6 @@ func (b PostgresBackend) CountEvents(ctx context.Context, filter nostr.Filter) (
 	return count, nil
 }
 
-func makePlaceHolders(n int) string {
-	return strings.TrimRight(strings.Repeat("?,", n), ",")
-}
-
 var (
 	TooManyIDs       = errors.New("too many ids")
 	TooManyAuthors   = errors.New("too many authors")
@@ -84,7 +81,7 @@ func (b PostgresBackend) queryEventsSql(filter nostr.Filter, doCount bool) (stri
 		for _, v := range filter.IDs {
 			params = append(params, v)
 		}
-		conditions = append(conditions, ` id IN (`+makePlaceHolders(len(filter.IDs))+`)`)
+		conditions = append(conditions, ` id IN (`+eventstore.MakePlaceHolders(len(filter.IDs))+`)`)
 	}
 
 	if len(filter.Authors) > 0 {
@@ -96,7 +93,7 @@ func (b PostgresBackend) queryEventsSql(filter nostr.Filter, doCount bool) (stri
 		for _, v := range filter.Authors {
 			params = append(params, v)
 		}
-		conditions = append(conditions, ` pubkey IN (`+makePlaceHolders(len(filter.Authors))+`)`)
+		conditions = append(conditions, ` pubkey IN (`+eventstore.MakePlaceHolders(len(filter.Authors))+`)`)
 	}
 
 	if len(filter.Kinds) > 0 {
@@ -108,7 +105,7 @@ func (b PostgresBackend) queryEventsSql(filter nostr.Filter, doCount bool) (stri
 		for _, v := range filter.Kinds {
 			params = append(params, v)
 		}
-		conditions = append(conditions, `kind IN (`+makePlaceHolders(len(filter.Kinds))+`)`)
+		conditions = append(conditions, `kind IN (`+eventstore.MakePlaceHolders(len(filter.Kinds))+`)`)
 	}
 
 	tagQuery := make([]string, 0, 1)
@@ -132,7 +129,7 @@ func (b PostgresBackend) queryEventsSql(filter nostr.Filter, doCount bool) (stri
 			params = append(params, tagValue)
 		}
 
-		conditions = append(conditions, `tagvalues <@ ARRAY[`+makePlaceHolders(len(tagQuery))+`]`)
+		conditions = append(conditions, `tagvalues <@ ARRAY[`+eventstore.MakePlaceHolders(len(tagQuery))+`]`)
 	}
 
 	if filter.Since != nil {

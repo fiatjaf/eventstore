@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/nbd-wtf/go-nostr"
 	"github.com/fiatjaf/cli/v3"
+	"github.com/nbd-wtf/go-nostr"
 )
 
 var delete_ = &cli.Command{
