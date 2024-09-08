@@ -90,7 +90,7 @@ func (b MySQLBackend) queryEventsSql(filter nostr.Filter, doCount bool) (string,
 		for _, v := range filter.Authors {
 			params = append(params, v)
 		}
-		conditions = append(conditions, ` pubkey IN (`+makePlaceHolders(len(filter.IDs))+`)`)
+		conditions = append(conditions, ` pubkey IN (`+makePlaceHolders(len(filter.Authors))+`)`)
 	}
 
 	if len(filter.Kinds) > 0 {
