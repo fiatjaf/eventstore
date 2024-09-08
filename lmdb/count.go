@@ -33,7 +33,7 @@ func (b *LMDBBackend) CountEvents(ctx context.Context, filter nostr.Filter) (int
 			if _, _, errsr := cursor.Get(q.startingPoint, nil, lmdb.SetRange); errsr != nil {
 				if operr, ok := errsr.(*lmdb.OpError); !ok || operr.Errno != lmdb.NotFound {
 					// in this case it's really an error
-					panic(err)
+					panic(operr)
 				} else {
 					// we're at the end and we just want notes before this,
 					// so we just need to set the cursor the last key, this is not a real error
