@@ -10,8 +10,8 @@ import (
 	"log"
 
 	"github.com/dgraph-io/badger/v4"
+	bin "github.com/fiatjaf/eventstore/internal/binary"
 	"github.com/nbd-wtf/go-nostr"
-	nostr_binary "github.com/nbd-wtf/go-nostr/binary"
 )
 
 type query struct {
@@ -98,7 +98,7 @@ func (b BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch
 
 					if err := item.Value(func(val []byte) error {
 						evt := &nostr.Event{}
-						if err := nostr_binary.Unmarshal(val, evt); err != nil {
+						if err := bin.Unmarshal(val, evt); err != nil {
 							log.Printf("badger: value read error (id %x): %s\n", val[0:32], err)
 							return err
 						}

@@ -6,8 +6,8 @@ import (
 	"log"
 
 	"github.com/dgraph-io/badger/v4"
+	bin "github.com/fiatjaf/eventstore/internal/binary"
 	"github.com/nbd-wtf/go-nostr"
-	nostr_binary "github.com/nbd-wtf/go-nostr/binary"
 )
 
 func (b BadgerBackend) CountEvents(ctx context.Context, filter nostr.Filter) (int64, error) {
@@ -62,7 +62,7 @@ func (b BadgerBackend) CountEvents(ctx context.Context, filter nostr.Filter) (in
 
 					err = item.Value(func(val []byte) error {
 						evt := &nostr.Event{}
-						if err := nostr_binary.Unmarshal(val, evt); err != nil {
+						if err := bin.Unmarshal(val, evt); err != nil {
 							return err
 						}
 

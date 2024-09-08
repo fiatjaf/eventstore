@@ -10,8 +10,8 @@ import (
 	"log"
 
 	"github.com/PowerDNS/lmdb-go/lmdb"
+	bin "github.com/fiatjaf/eventstore/internal/binary"
 	"github.com/nbd-wtf/go-nostr"
-	nostr_binary "github.com/nbd-wtf/go-nostr/binary"
 )
 
 type query struct {
@@ -111,7 +111,7 @@ func (b *LMDBBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (cha
 					}
 
 					evt := &nostr.Event{}
-					if err := nostr_binary.Unmarshal(val, evt); err != nil {
+					if err := bin.Unmarshal(val, evt); err != nil {
 						log.Printf("lmdb: value read error (id %x): %s\n", val[0:32], err)
 						return fmt.Errorf("error: %w", err)
 					}

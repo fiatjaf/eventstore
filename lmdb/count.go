@@ -6,8 +6,8 @@ import (
 	"encoding/binary"
 
 	"github.com/PowerDNS/lmdb-go/lmdb"
+	bin "github.com/fiatjaf/eventstore/internal/binary"
 	"github.com/nbd-wtf/go-nostr"
-	nostr_binary "github.com/nbd-wtf/go-nostr/binary"
 )
 
 func (b *LMDBBackend) CountEvents(ctx context.Context, filter nostr.Filter) (int64, error) {
@@ -71,7 +71,7 @@ func (b *LMDBBackend) CountEvents(ctx context.Context, filter nostr.Filter) (int
 					}
 
 					evt := &nostr.Event{}
-					if err := nostr_binary.Unmarshal(val, evt); err != nil {
+					if err := bin.Unmarshal(val, evt); err != nil {
 						return err
 					}
 

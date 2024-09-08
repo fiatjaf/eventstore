@@ -6,8 +6,8 @@ import (
 
 	"github.com/dgraph-io/badger/v4"
 	"github.com/fiatjaf/eventstore"
+	bin "github.com/fiatjaf/eventstore/internal/binary"
 	"github.com/nbd-wtf/go-nostr"
-	nostr_binary "github.com/nbd-wtf/go-nostr/binary"
 )
 
 func (b *BadgerBackend) SaveEvent(ctx context.Context, evt *nostr.Event) error {
@@ -26,7 +26,7 @@ func (b *BadgerBackend) SaveEvent(ctx context.Context, evt *nostr.Event) error {
 		}
 
 		// encode to binary
-		bin, err := nostr_binary.Marshal(evt)
+		bin, err := bin.Marshal(evt)
 		if err != nil {
 			return err
 		}
