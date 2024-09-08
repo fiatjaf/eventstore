@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/fiatjaf/cli/v3"
 	"github.com/mailru/easyjson"
 	"github.com/nbd-wtf/go-nostr"
-	"github.com/fiatjaf/cli/v3"
 )
 
 var save = &cli.Command{
