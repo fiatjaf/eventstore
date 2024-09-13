@@ -14,6 +14,9 @@ type RelayWrapper struct {
 var _ nostr.RelayStore = (*RelayWrapper)(nil)
 
 func (w RelayWrapper) Publish(ctx context.Context, evt nostr.Event) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	if 20000 <= evt.Kind && evt.Kind < 30000 {
 		// do not store ephemeral events
 		return nil
