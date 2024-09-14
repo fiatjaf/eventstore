@@ -2,6 +2,7 @@ package slicestore
 
 import (
 	"context"
+	"strings"
 
 	"github.com/fiatjaf/eventstore"
 	"github.com/nbd-wtf/go-nostr"
@@ -80,13 +81,9 @@ func (b *SliceStore) CountEvents(ctx context.Context, filter nostr.Filter) (int6
 }
 
 func (b *SliceStore) SaveEvent(ctx context.Context, evt *nostr.Event) error {
-	idx, found := slices.BinarySearchFunc(b.internal, evt.CreatedAt, eventTimestampComparator)
+	idx, found := slices.BinarySearchFunc(b.internal, evt, eventComparator)
 	if found {
-		// is this already here?
-		if b.internal[idx].ID == evt.ID {
-			return nil
-		}
-		// if not, then it's just two events with the same timestamp
+		return eventstore.ErrDupEvent
 	}
 	// let's insert at the correct place in the array
 	b.internal = append(b.internal, evt) // bogus
@@ -97,13 +94,8 @@ func (b *SliceStore) SaveEvent(ctx context.Context, evt *nostr.Event) error {
 }
 
 func (b *SliceStore) DeleteEvent(ctx context.Context, evt *nostr.Event) error {
-	idx, found := slices.BinarySearchFunc(b.internal, evt.CreatedAt, eventTimestampComparator)
+	idx, found := slices.BinarySearchFunc(b.internal, evt, eventComparator)
 	if !found {
-		// we don't have this event
-		return nil
-	}
-
-	if b.internal[idx].ID != evt.ID {
 		// we don't have this event
 		return nil
 	}
@@ -116,4 +108,12 @@ func (b *SliceStore) DeleteEvent(ctx context.Context, evt *nostr.Event) error {
 
 func eventTimestampComparator(e *nostr.Event, t nostr.Timestamp) int {
 	return int(t) - int(e.CreatedAt)
+}
+
+func eventComparator(a *nostr.Event, b *nostr.Event) int {
+	c := int(b.CreatedAt) - int(a.CreatedAt)
+	if c != 0 {
+		return c
+	}
+	return strings.Compare(b.ID, a.ID)
 }
