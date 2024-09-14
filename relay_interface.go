@@ -82,7 +82,7 @@ func (w RelayWrapper) Publish(ctx context.Context, evt nostr.Event) error {
 	return nil
 }
 
-func (w RelayWrapper) QuerySync(ctx context.Context, filter nostr.Filter, opts ...nostr.SubscriptionOption) ([]*nostr.Event, error) {
+func (w RelayWrapper) QuerySync(ctx context.Context, filter nostr.Filter) ([]*nostr.Event, error) {
 	ch, err := w.Store.QueryEvents(ctx, filter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query: %w", err)
