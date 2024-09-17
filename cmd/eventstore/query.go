@@ -12,9 +12,9 @@ import (
 
 var query = &cli.Command{
 	Name:        "query",
-	Usage:       "queries an eventstore for events, takes a Nostr filter as argument",
-	Description: "unless specified to be smaller, up to a million results will be returned",
-	UsageText:   "eventstore query <nostr-filter>",
+	ArgsUsage:   "[<filter-json>]",
+	Usage:       "queries an eventstore for events, takes a filter as argument",
+	Description: "applies the filter to the currently open eventstore, returning up to a million events.\n takes either a filter as an argument or reads a stream of filters from stdin.",
 	Action: func(ctx context.Context, c *cli.Command) error {
 		hasError := false
 		for line := range getStdinLinesOrFirstArgument(c) {
