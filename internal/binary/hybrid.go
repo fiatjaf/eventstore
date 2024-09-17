@@ -12,7 +12,7 @@ import (
 func Unmarshal(data []byte, evt *nostr.Event) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			err = fmt.Errorf("failed to decode binary for event %s: %v", evt.ID, r)
+			err = fmt.Errorf("failed to decode binary for event %s from %s at %d: %v", evt.ID, evt.PubKey, evt.CreatedAt, r)
 		}
 	}()
 
