@@ -146,6 +146,7 @@ var app = &cli.Command{
 		query,
 		save,
 		delete_,
+		neg,
 	},
 	DefaultCommand: "query-or-save",
 }
