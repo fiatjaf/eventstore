@@ -112,7 +112,7 @@ func (b *LMDBBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (cha
 
 					evt := &nostr.Event{}
 					if err := bin.Unmarshal(val, evt); err != nil {
-						log.Printf("lmdb: value read error (id %x): %s\n", val[0:32], err)
+						log.Printf("lmdb: value read error (id %x) on query prefix %x sp %x dbi %d: %s\n", val[0:32], q.prefix, q.startingPoint, q.dbi, err)
 						return fmt.Errorf("error: %w", err)
 					}
 
