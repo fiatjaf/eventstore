@@ -16,7 +16,7 @@ require (
 	github.com/lib/pq v1.10.9
 	github.com/mailru/easyjson v0.7.7
 	github.com/mattn/go-sqlite3 v1.14.18
-	github.com/nbd-wtf/go-nostr v0.36.2
+	github.com/nbd-wtf/go-nostr v0.37.2
 	github.com/opensearch-project/opensearch-go/v4 v4.0.0
 	github.com/stretchr/testify v1.9.0
 	golang.org/x/exp v0.0.0-20240909161429-701f63a606c0

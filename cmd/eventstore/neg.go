@@ -12,6 +12,7 @@ import (
 	"github.com/mailru/easyjson"
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/nbd-wtf/go-nostr/nip77/negentropy"
+	"github.com/nbd-wtf/go-nostr/nip77/negentropy/storage/vector"
 )
 
 var neg = &cli.Command{
@@ -41,13 +42,14 @@ var neg = &cli.Command{
 		}
 
 		// create negentropy object and initialize it with events
-		neg := negentropy.NewNegentropy(negentropy.NewVector(), frameSizeLimit)
+		vec := vector.New()
+		neg := negentropy.New(vec, frameSizeLimit)
 		ch, err := db.QueryEvents(ctx, filter)
 		if err != nil {
 			return fmt.Errorf("error querying: %s\n", err)
 		}
 		for evt := range ch {
-			neg.Insert(evt)
+			vec.Insert(evt.CreatedAt, evt.ID)
 		}
 
 		wg := sync.WaitGroup{}
@@ -78,7 +80,7 @@ var neg = &cli.Command{
 
 		if msg == "" {
 			// initiate the process
-			out := neg.Initiate()
+			out := neg.Start()
 			fmt.Println(out)
 		} else {
 			// process the message
