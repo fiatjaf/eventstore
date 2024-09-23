@@ -8,12 +8,13 @@ import (
 	"github.com/PowerDNS/lmdb-go/lmdb"
 	bin "github.com/fiatjaf/eventstore/internal/binary"
 	"github.com/nbd-wtf/go-nostr"
+	"golang.org/x/exp/slices"
 )
 
 func (b *LMDBBackend) CountEvents(ctx context.Context, filter nostr.Filter) (int64, error) {
 	var count int64 = 0
 
-	queries, extraFilter, since, err := b.prepareQueries(filter)
+	queries, extraAuthors, extraKinds, extraTagKey, extraTagValues, since, err := b.prepareQueries(filter)
 	if err != nil {
 		return 0, err
 	}
@@ -61,7 +62,7 @@ func (b *LMDBBackend) CountEvents(ctx context.Context, filter nostr.Filter) (int
 					}
 				}
 
-				if extraFilter == nil {
+				if extraAuthors == nil && extraKinds == nil && extraTagValues == nil {
 					count++
 				} else {
 					// fetch actual event
@@ -70,20 +71,31 @@ func (b *LMDBBackend) CountEvents(ctx context.Context, filter nostr.Filter) (int
 						panic(err)
 					}
 
+					// check it against pubkeys without decoding the entire thing
+					if !slices.Contains(extraAuthors, [32]byte(val[32:64])) {
+						goto loopend
+					}
+
+					// check it against kinds without decoding the entire thing
+					if !slices.Contains(extraKinds, [2]byte(val[132:134])) {
+						goto loopend
+					}
+
 					evt := &nostr.Event{}
 					if err := bin.Unmarshal(val, evt); err != nil {
-						return err
+						goto loopend
 					}
 
-					// check if this matches the other filters that were not part of the index
-					if extraFilter.Matches(evt) {
-						count++
+					// if there is still a tag to be checked, do it now
+					if !evt.Tags.ContainsAny(extraTagKey, extraTagValues) {
+						goto loopend
 					}
 
-					return nil
+					count++
 				}
 
 				// move one back (we'll look into k and v and err in the next iteration)
+			loopend:
 				k, idx, iterr = cursor.Get(nil, nil, lmdb.Prev)
 			}
 		}

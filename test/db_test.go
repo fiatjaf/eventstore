@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"slices"
+	"strconv"
+	"strings"
 	"testing"
 
 	embeddedpostgres "github.com/fergusstrange/embedded-postgres"
@@ -51,7 +53,9 @@ func TestPostgres(t *testing.T) {
 		return
 	}
 	defer postgres.Stop()
-	runTestOn(t, &postgresql.PostgresBackend{DatabaseURL: "postgres://postgres:postgres@:5432/postgres?sslmode=disable"})
+	runTestOn(t, &postgresql.PostgresBackend{
+		DatabaseURL: "postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable",
+	})
 }
 
 func runTestOn(t *testing.T, db eventstore.Store) {
@@ -67,8 +71,11 @@ func runTestOn(t *testing.T, db eventstore.Store) {
 		evt := &nostr.Event{
 			CreatedAt: nostr.Timestamp(i*10 + 2),
 			Content:   fmt.Sprintf("hello %d", i),
-			Tags:      nostr.Tags{{"n", fmt.Sprintf("%d", i)}},
-			Kind:      1,
+			Tags: nostr.Tags{
+				{"t", fmt.Sprintf("%d", i)},
+				{"e", "0" + strconv.Itoa(i) + strings.Repeat("0", 62)},
+			},
+			Kind: 1,
 		}
 		sk := sk3
 		if i%3 == 0 {
@@ -92,15 +99,6 @@ func runTestOn(t *testing.T, db eventstore.Store) {
 			allEvents,
 			results,
 			"open-ended query results error")
-	}
-
-	{
-		results, err := w.QuerySync(ctx, nostr.Filter{Tags: nostr.TagMap{"n": []string{"2", "4", "6"}}})
-		require.NoError(t, err)
-		require.ElementsMatch(t,
-			[]*nostr.Event{allEvents[2], allEvents[4], allEvents[6]},
-			results,
-			"tag query results error")
 	}
 
 	{
@@ -173,6 +171,15 @@ func runTestOn(t *testing.T, db eventstore.Store) {
 			"2 pubkeys and kind query error")
 	}
 
+	{
+		results, err := w.QuerySync(ctx, nostr.Filter{Tags: nostr.TagMap{"t": []string{"2", "4", "6"}}})
+		require.NoError(t, err)
+		require.ElementsMatch(t,
+			[]*nostr.Event{allEvents[2], allEvents[4], allEvents[6]},
+			results,
+			"tag query results error")
+	}
+
 	// delete
 	require.NoError(t, db.DeleteEvent(ctx, allEvents[4]), "delete 1 error")
 	require.NoError(t, db.DeleteEvent(ctx, allEvents[5]), "delete 2 error")
@@ -188,12 +195,21 @@ func runTestOn(t *testing.T, db eventstore.Store) {
 	}
 
 	{
-		results, err := w.QuerySync(ctx, nostr.Filter{Tags: nostr.TagMap{"n": []string{"2", "6"}}})
+		results, err := w.QuerySync(ctx, nostr.Filter{Tags: nostr.TagMap{"t": []string{"2", "6"}}})
 		require.NoError(t, err)
 		require.ElementsMatch(t,
 			[]*nostr.Event{allEvents[2], allEvents[6]},
 			results,
 			"second tag query results error")
+	}
+
+	{
+		results, err := w.QuerySync(ctx, nostr.Filter{Tags: nostr.TagMap{"e": []string{allEvents[3].Tags[1][1]}}})
+		require.NoError(t, err)
+		require.ElementsMatch(t,
+			[]*nostr.Event{allEvents[3]},
+			results,
+			"'e' tag query results error")
 	}
 
 	{
