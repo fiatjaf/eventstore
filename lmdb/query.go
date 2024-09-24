@@ -14,16 +14,6 @@ import (
 	"github.com/nbd-wtf/go-nostr"
 )
 
-type query struct {
-	i             int
-	dbi           lmdb.DBI
-	prefix        []byte
-	results       chan *nostr.Event
-	prefixSize    int
-	timestampSize int
-	startingPoint []byte
-}
-
 type queryEvent struct {
 	*nostr.Event
 	query int
@@ -50,6 +40,11 @@ func (b *LMDBBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (cha
 
 	go func() {
 		defer close(ch)
+		defer func() {
+			for _, q := range queries {
+				q.free()
+			}
+		}()
 
 		for _, q := range queries {
 			q := q
@@ -87,8 +82,8 @@ func (b *LMDBBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (cha
 				for {
 					// we already have a k and a v and an err from the cursor setup, so check and use these
 					if iterr != nil ||
-						len(k) != q.prefixSize+q.timestampSize ||
-						!bytes.Equal(k[:q.prefixSize], q.prefix) {
+						len(k) != q.keySize ||
+						!bytes.HasPrefix(k, q.prefix) {
 						// either iteration has errored or we reached the end of this prefix
 						return nil
 					}
@@ -173,11 +168,16 @@ func (b *LMDBBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (cha
 		heap.Init(&emitQueue)
 
 		// iterate until we've emitted all events required
+		var lastEmitted string
 		for {
 			// emit latest event in queue
 			latest := emitQueue[0]
+			if lastEmitted != "" && latest.ID == lastEmitted {
+				goto skip
+			}
 			select {
 			case ch <- latest.Event:
+				lastEmitted = latest.ID
 			case <-ctx.Done():
 				return
 			}
@@ -188,6 +188,7 @@ func (b *LMDBBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (cha
 				break
 			}
 
+		skip:
 			// fetch a new one from query results and replace the previous one with it
 			if evt, ok := <-queries[latest.query].results; ok {
 				emitQueue[0].Event = evt

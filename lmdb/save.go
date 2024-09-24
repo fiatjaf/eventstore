@@ -39,7 +39,9 @@ func (b *LMDBBackend) SaveEvent(ctx context.Context, evt *nostr.Event) error {
 		}
 
 		for _, k := range b.getIndexKeysForEvent(evt) {
-			if err := txn.Put(k.dbi, k.key, idx, 0); err != nil {
+			err := txn.Put(k.dbi, k.key, idx, 0)
+			k.free()
+			if err != nil {
 				return err
 			}
 		}

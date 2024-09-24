@@ -19,7 +19,7 @@ var _ eventstore.Store = (*LMDBBackend)(nil)
 type LMDBBackend struct {
 	Path     string
 	MaxLimit int
-	MapSize int64
+	MapSize  int64
 
 	lmdbEnv *lmdb.Env
 
@@ -33,6 +33,7 @@ type LMDBBackend struct {
 	indexTag        lmdb.DBI
 	indexTag32      lmdb.DBI
 	indexTagAddr    lmdb.DBI
+	indexPTagKind   lmdb.DBI
 
 	lastId atomic.Uint32
 }
@@ -48,7 +49,7 @@ func (b *LMDBBackend) Init() error {
 		return err
 	}
 
-	env.SetMaxDBs(10)
+	env.SetMaxDBs(11)
 	env.SetMaxReaders(1000)
 	if b.MapSize == 0 {
 		env.SetMapSize(1 << 38) // ~273GB
@@ -121,6 +122,11 @@ func (b *LMDBBackend) Init() error {
 		} else {
 			b.indexTagAddr = dbi
 		}
+		if dbi, err := txn.OpenDBI("ptagKind", multiIndexCreationFlags); err != nil {
+			return err
+		} else {
+			b.indexPTagKind = dbi
+		}
 		return nil
 	}); err != nil {
 		return err
@@ -160,9 +166,4 @@ func (b *LMDBBackend) Serial() []byte {
 	vb := make([]byte, 4)
 	binary.BigEndian.PutUint32(vb[:], uint32(v))
 	return vb
-}
-
-type key struct {
-	dbi lmdb.DBI
-	key []byte
 }

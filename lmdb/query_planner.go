@@ -5,8 +5,27 @@ import (
 	"encoding/hex"
 	"fmt"
 
+	"github.com/PowerDNS/lmdb-go/lmdb"
+	"github.com/fiatjaf/eventstore/internal"
 	"github.com/nbd-wtf/go-nostr"
 )
+
+type query struct {
+	i             int
+	dbi           lmdb.DBI
+	prefix        []byte // this is pooled from indexKeyPool and we should return it
+	results       chan *nostr.Event
+	keySize       int
+	timestampSize int
+	startingPoint []byte
+}
+
+func (q query) free() {
+	if len(q.prefix) > 40 {
+		indexKeyPool.Put(q.prefix)
+		indexKeyPool.Put(q.startingPoint)
+	}
+}
 
 func (b *LMDBBackend) prepareQueries(filter nostr.Filter) (
 	queries []query,
@@ -19,6 +38,10 @@ func (b *LMDBBackend) prepareQueries(filter nostr.Filter) (
 ) {
 	// we will apply this to every query we return
 	defer func() {
+		if queries == nil {
+			return
+		}
+
 		var until uint32 = 4294967295
 		if filter.Until != nil {
 			if fu := uint32(*filter.Until); fu < until {
@@ -26,7 +49,10 @@ func (b *LMDBBackend) prepareQueries(filter nostr.Filter) (
 			}
 		}
 		for i, q := range queries {
-			queries[i].startingPoint = binary.BigEndian.AppendUint32(q.prefix, uint32(until))
+			sp := indexKeyPool.Get().([]byte)
+			sp = sp[0:len(q.prefix)]
+			copy(sp, q.prefix)
+			queries[i].startingPoint = binary.BigEndian.AppendUint32(sp, uint32(until))
 			queries[i].results = make(chan *nostr.Event, 12)
 		}
 	}()
@@ -38,8 +64,9 @@ func (b *LMDBBackend) prepareQueries(filter nostr.Filter) (
 			if len(idHex) != 64 {
 				return nil, nil, nil, "", nil, 0, fmt.Errorf("invalid id '%s'", idHex)
 			}
-			prefix, _ := hex.DecodeString(idHex[0 : 8*2])
-			queries[i] = query{i: i, dbi: b.indexId, prefix: prefix, prefixSize: 8, timestampSize: 0}
+			prefix := indexKeyPool.Get().([]byte)
+			hex.Decode(prefix[0:8], []byte(idHex[0:8*2]))
+			queries[i] = query{i: i, dbi: b.indexId, prefix: prefix[0:8], keySize: 8, timestampSize: 0}
 		}
 		return queries, nil, nil, "", nil, 0, nil
 	}
@@ -53,40 +80,70 @@ func (b *LMDBBackend) prepareQueries(filter nostr.Filter) (
 
 	if len(filter.Tags) > 0 {
 		// we will select ONE tag to query for and ONE extra tag to do further narrowing, if available
-		tagKey, tagValues, goodness := chooseNarrowestTag(filter)
-		if goodness <= 2 && (len(filter.Authors) > 0 || len(filter.Kinds) > 0) {
-			// we won't use a tag index for this as long as we have something else to match with
+		tagKey, tagValues, goodness := internal.ChooseNarrowestTag(filter)
+
+		// we won't use a tag index for this as long as we have something else to match with
+		if goodness < 2 && (len(filter.Authors) > 0 || len(filter.Kinds) > 0) {
 			goto pubkeyMatching
 		}
 
-		// will use a tag index
-		queries = make([]query, len(tagValues))
-		for i, value := range tagValues {
-			// get key prefix (with full length) and offset where to write the created_at
-			dbi, k, offset := b.getTagIndexPrefix(value)
-			// remove the last parts part to get just the prefix we want here
-			prefix := k[0:offset]
-			queries[i] = query{i: i, dbi: dbi, prefix: prefix, prefixSize: len(prefix), timestampSize: 4}
-			i++
+		// only "p" tag has a goodness of 2, so
+		if goodness == 2 {
+			// this means we got a "p" tag, so we will use the ptag-kind index
+			i := 0
+			if filter.Kinds != nil {
+				queries = make([]query, len(tagValues)*len(filter.Kinds))
+				for _, value := range tagValues {
+					for _, kind := range filter.Kinds {
+						k := indexKeyPool.Get().([]byte)
+						hex.Decode(k[0:8], []byte(value[0:8*2])) // assume this is hex and valid
+						binary.BigEndian.PutUint16(k[8:8+2], uint16(kind))
+						queries[i] = query{i: i, dbi: b.indexPTagKind, prefix: k[0 : 8+2], keySize: 8 + 2 + 4, timestampSize: 4}
+						i++
+					}
+				}
+			} else {
+				// even if there are no kinds, in that case we will just return any kind and not care
+				queries = make([]query, len(tagValues))
+				for i, value := range tagValues {
+					k := indexKeyPool.Get().([]byte)
+					hex.Decode(k[0:8], []byte(value[0:8*2])) // assume this is hex and valid
+					queries[i] = query{i: i, dbi: b.indexPTagKind, prefix: k[0:8], keySize: 8 + 2 + 4, timestampSize: 4}
+				}
+			}
+		} else {
+			// otherwise we will use a plain tag index
+			queries = make([]query, len(tagValues))
+			for i, value := range tagValues {
+				// get key prefix (with full length) and offset where to write the created_at
+				dbi, k, offset := b.getTagIndexPrefix(value)
+				// remove the last parts part to get just the prefix we want here
+				prefix := k[0:offset]
+				queries[i] = query{i: i, dbi: dbi, prefix: prefix, keySize: len(prefix) + 4, timestampSize: 4}
+				i++
+			}
+
+			// add an extra kind filter if available (only do this on plain tag index, not on ptag-kind index)
+			if filter.Kinds != nil {
+				extraKinds = make([][2]byte, len(filter.Kinds))
+				for i, kind := range filter.Kinds {
+					binary.BigEndian.PutUint16(extraKinds[i][0:2], uint16(kind))
+				}
+			}
 		}
 
+		// add an extra author search if possible
 		if filter.Authors != nil {
 			extraAuthors = make([][32]byte, len(filter.Authors))
 			for i, pk := range filter.Authors {
 				hex.Decode(extraAuthors[i][:], []byte(pk))
 			}
 		}
-		if filter.Kinds != nil {
-			extraKinds = make([][2]byte, len(filter.Kinds))
-			for i, kind := range filter.Kinds {
-				extraKinds[i][0] = byte(kind >> 8)
-				extraKinds[i][1] = byte(kind)
-			}
-		}
 
+		// add an extra useless tag if available
 		delete(filter.Tags, tagKey)
 		if len(filter.Tags) > 0 {
-			extraTagKey, extraTagValues, _ = chooseNarrowestTag(filter)
+			extraTagKey, extraTagValues, _ = internal.ChooseNarrowestTag(filter)
 		}
 
 		return queries, extraAuthors, extraKinds, extraTagKey, extraTagValues, since, nil
@@ -101,8 +158,9 @@ pubkeyMatching:
 				if len(pubkeyHex) != 64 {
 					return nil, nil, nil, "", nil, 0, fmt.Errorf("invalid pubkey '%s'", pubkeyHex)
 				}
-				prefix, _ := hex.DecodeString(pubkeyHex[0 : 8*2])
-				queries[i] = query{i: i, dbi: b.indexPubkey, prefix: prefix, prefixSize: 8, timestampSize: 4}
+				prefix := indexKeyPool.Get().([]byte)
+				hex.Decode(prefix[0:8], []byte(pubkeyHex[0:8*2]))
+				queries[i] = query{i: i, dbi: b.indexPubkey, prefix: prefix[0:8], keySize: 8 + 4, timestampSize: 4}
 			}
 		} else {
 			// will use pubkeyKind index
@@ -113,16 +171,17 @@ pubkeyMatching:
 					if len(pubkeyHex) != 64 {
 						return nil, nil, nil, "", nil, 0, fmt.Errorf("invalid pubkey '%s'", pubkeyHex)
 					}
-					pubkey, _ := hex.DecodeString(pubkeyHex[0 : 8*2])
-					prefix := binary.BigEndian.AppendUint16(pubkey, uint16(kind))
-					queries[i] = query{i: i, dbi: b.indexPubkeyKind, prefix: prefix, prefixSize: 10, timestampSize: 4}
+					prefix := indexKeyPool.Get().([]byte)
+					hex.Decode(prefix[0:8], []byte(pubkeyHex[0:8*2]))
+					binary.BigEndian.PutUint16(prefix[8:8+2], uint16(kind))
+					queries[i] = query{i: i, dbi: b.indexPubkeyKind, prefix: prefix[0 : 8+2], keySize: 10 + 4, timestampSize: 4}
 					i++
 				}
 			}
 		}
 
 		// potentially with an extra useless tag filtering
-		extraTagKey, extraTagValues, _ = chooseNarrowestTag(filter)
+		extraTagKey, extraTagValues, _ = internal.ChooseNarrowestTag(filter)
 		return queries, nil, nil, extraTagKey, extraTagValues, since, nil
 	}
 
@@ -130,70 +189,19 @@ pubkeyMatching:
 		// will use a kind index
 		queries = make([]query, len(filter.Kinds))
 		for i, kind := range filter.Kinds {
-			prefix := make([]byte, 2)
-			binary.BigEndian.PutUint16(prefix[:], uint16(kind))
-			queries[i] = query{i: i, dbi: b.indexKind, prefix: prefix, prefixSize: 2, timestampSize: 4}
+			prefix := indexKeyPool.Get().([]byte)
+			binary.BigEndian.PutUint16(prefix[0:2], uint16(kind))
+			queries[i] = query{i: i, dbi: b.indexKind, prefix: prefix[0:2], keySize: 2 + 4, timestampSize: 4}
 		}
 
 		// potentially with an extra useless tag filtering
-		tagKey, tagValues, _ := chooseNarrowestTag(filter)
+		tagKey, tagValues, _ := internal.ChooseNarrowestTag(filter)
 		return queries, nil, nil, tagKey, tagValues, since, nil
 	}
 
 	// if we got here our query will have nothing to filter with
 	queries = make([]query, 1)
 	prefix := make([]byte, 0)
-	queries[0] = query{i: 0, dbi: b.indexCreatedAt, prefix: prefix, prefixSize: 0, timestampSize: 4}
+	queries[0] = query{i: 0, dbi: b.indexCreatedAt, prefix: prefix, keySize: 0 + 4, timestampSize: 4}
 	return queries, nil, nil, "", nil, since, nil
-}
-
-func chooseNarrowestTag(filter nostr.Filter) (key string, values []string, goodness int) {
-	var tagKey string
-	var tagValues []string
-	for key, values := range filter.Tags {
-		switch key {
-		case "e", "E", "q":
-			// 'e' and 'q' are the narrowest possible, so if we have that we will use it and that's it
-			tagKey = key
-			tagValues = values
-			break
-		case "a", "A", "i", "I", "g", "r":
-			// these are second-best as they refer to relatively static things
-			goodness = 9
-			tagKey = key
-			tagValues = values
-		case "d":
-			// this is as good as long as we have an "authors"
-			if len(filter.Authors) != 0 && goodness < 8 {
-				goodness = 8
-				tagKey = key
-				tagValues = values
-			} else if goodness < 4 {
-				goodness = 4
-				tagKey = key
-				tagValues = values
-			}
-		case "h", "t", "l", "k", "K":
-			// these things denote "categories", so they are a little more broad
-			goodness = 7
-			tagKey = key
-			tagValues = values
-		case "p":
-			// this is broad and useless for a pure tag search, but we will still prefer it over others
-			// for secondary filtering
-			if goodness < 0 {
-				goodness = 2
-				tagKey = key
-				tagValues = values
-			}
-		default:
-			// all the other tags are probably too broad and useless
-			if goodness == 0 {
-				tagKey = key
-				tagValues = values
-			}
-		}
-	}
-
-	return tagKey, tagValues, goodness
 }

@@ -48,8 +48,8 @@ func (b *LMDBBackend) CountEvents(ctx context.Context, filter nostr.Filter) (int
 			for {
 				// we already have a k and a v and an err from the cursor setup, so check and use these
 				if iterr != nil ||
-					len(k) != q.prefixSize+q.timestampSize ||
-					!bytes.Equal(k[:q.prefixSize], q.prefix) {
+					len(k) != q.keySize ||
+					!bytes.HasPrefix(k, q.prefix) {
 					// either iteration has errored or we reached the end of this prefix
 					break // stop this cursor and move to the next one
 				}
