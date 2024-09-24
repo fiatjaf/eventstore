@@ -39,7 +39,7 @@ func deleteBeforeSaveSql(evt *nostr.Event) (string, []any, bool) {
 		params       []any
 		shouldDelete bool
 	)
-	if evt.Kind == nostr.KindProfileMetadata || evt.Kind == nostr.KindContactList || (10000 <= evt.Kind && evt.Kind < 20000) {
+	if evt.Kind == nostr.KindProfileMetadata || evt.Kind == nostr.KindFollowList || (10000 <= evt.Kind && evt.Kind < 20000) {
 		// delete past events from this user
 		query = `DELETE FROM event WHERE pubkey = ? AND kind = ?`
 		params = []any{evt.PubKey, evt.Kind}
