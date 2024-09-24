@@ -11,16 +11,17 @@ func ChooseNarrowestTag(filter nostr.Filter) (key string, values []string, goodn
 			// 'e' and 'q' are the narrowest possible, so if we have that we will use it and that's it
 			tagKey = key
 			tagValues = values
+			goodness = 9
 			break
 		case "a", "A", "i", "I", "g", "r":
 			// these are second-best as they refer to relatively static things
-			goodness = 9
+			goodness = 8
 			tagKey = key
 			tagValues = values
 		case "d":
 			// this is as good as long as we have an "authors"
-			if len(filter.Authors) != 0 && goodness < 8 {
-				goodness = 8
+			if len(filter.Authors) != 0 && goodness < 7 {
+				goodness = 7
 				tagKey = key
 				tagValues = values
 			} else if goodness < 4 {
@@ -30,9 +31,11 @@ func ChooseNarrowestTag(filter nostr.Filter) (key string, values []string, goodn
 			}
 		case "h", "t", "l", "k", "K":
 			// these things denote "categories", so they are a little more broad
-			goodness = 7
-			tagKey = key
-			tagValues = values
+			if goodness < 6 {
+				goodness = 6
+				tagKey = key
+				tagValues = values
+			}
 		case "p":
 			// this is broad and useless for a pure tag search, but we will still prefer it over others
 			// for secondary filtering
