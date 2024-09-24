@@ -6,12 +6,12 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"log"
 
 	"github.com/dgraph-io/badger/v4"
 	bin "github.com/fiatjaf/eventstore/internal/binary"
 	"github.com/nbd-wtf/go-nostr"
+	"golang.org/x/exp/slices"
 )
 
 type query struct {
@@ -97,6 +97,18 @@ func (b BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch
 					}
 
 					if err := item.Value(func(val []byte) error {
+						// check it against pubkeys without decoding the entire thing
+						if extraFilter != nil && extraFilter.Authors != nil &&
+							!slices.Contains(extraFilter.Authors, hex.EncodeToString(val[32:64])) {
+							return nil
+						}
+
+						// check it against kinds without decoding the entire thing
+						if extraFilter != nil && extraFilter.Kinds != nil &&
+							!slices.Contains(extraFilter.Kinds, int(binary.BigEndian.Uint16(val[132:134]))) {
+							return nil
+						}
+
 						evt := &nostr.Event{}
 						if err := bin.Unmarshal(val, evt); err != nil {
 							log.Printf("badger: value read error (id %x): %s\n", val[0:32], err)
@@ -206,123 +218,4 @@ func (pq *priorityQueue) Pop() any {
 	old[n-1] = nil // avoid memory leak
 	*pq = old[0 : n-1]
 	return item
-}
-
-func prepareQueries(filter nostr.Filter) (
-	queries []query,
-	extraFilter *nostr.Filter,
-	since uint32,
-	err error,
-) {
-	var index byte
-
-	if len(filter.IDs) > 0 {
-		index = indexIdPrefix
-		queries = make([]query, len(filter.IDs))
-		for i, idHex := range filter.IDs {
-			prefix := make([]byte, 1+8)
-			prefix[0] = index
-			if len(idHex) != 64 {
-				return nil, nil, 0, fmt.Errorf("invalid id '%s'", idHex)
-			}
-			idPrefix8, _ := hex.DecodeString(idHex[0 : 8*2])
-			copy(prefix[1:], idPrefix8)
-			queries[i] = query{i: i, prefix: prefix, skipTimestamp: true}
-		}
-	} else if len(filter.Authors) > 0 {
-		if len(filter.Kinds) == 0 {
-			index = indexPubkeyPrefix
-			queries = make([]query, len(filter.Authors))
-			for i, pubkeyHex := range filter.Authors {
-				if len(pubkeyHex) != 64 {
-					return nil, nil, 0, fmt.Errorf("invalid pubkey '%s'", pubkeyHex)
-				}
-				pubkeyPrefix8, _ := hex.DecodeString(pubkeyHex[0 : 8*2])
-				prefix := make([]byte, 1+8)
-				prefix[0] = index
-				copy(prefix[1:], pubkeyPrefix8)
-				queries[i] = query{i: i, prefix: prefix}
-			}
-		} else {
-			index = indexPubkeyKindPrefix
-			queries = make([]query, len(filter.Authors)*len(filter.Kinds))
-			i := 0
-			for _, pubkeyHex := range filter.Authors {
-				for _, kind := range filter.Kinds {
-					if len(pubkeyHex) != 64 {
-						return nil, nil, 0, fmt.Errorf("invalid pubkey '%s'", pubkeyHex)
-					}
-					pubkeyPrefix8, _ := hex.DecodeString(pubkeyHex[0 : 8*2])
-					prefix := make([]byte, 1+8+2)
-					prefix[0] = index
-					copy(prefix[1:], pubkeyPrefix8)
-					binary.BigEndian.PutUint16(prefix[1+8:], uint16(kind))
-					queries[i] = query{i: i, prefix: prefix}
-					i++
-				}
-			}
-		}
-		extraFilter = &nostr.Filter{Tags: filter.Tags}
-	} else if len(filter.Tags) > 0 {
-		// determine the size of the queries array by inspecting all tags sizes
-		size := 0
-		for _, values := range filter.Tags {
-			size += len(values)
-		}
-		if size == 0 {
-			return nil, nil, 0, fmt.Errorf("empty tag filters")
-		}
-
-		queries = make([]query, size)
-
-		extraFilter = &nostr.Filter{Kinds: filter.Kinds}
-		i := 0
-		for _, values := range filter.Tags {
-			for _, value := range values {
-				// get key prefix (with full length) and offset where to write the last parts
-				k, offset := getTagIndexPrefix(value)
-				// remove the last parts part to get just the prefix we want here
-				prefix := k[0:offset]
-
-				queries[i] = query{i: i, prefix: prefix}
-				i++
-			}
-		}
-	} else if len(filter.Kinds) > 0 {
-		index = indexKindPrefix
-		queries = make([]query, len(filter.Kinds))
-		for i, kind := range filter.Kinds {
-			prefix := make([]byte, 1+2)
-			prefix[0] = index
-			binary.BigEndian.PutUint16(prefix[1:], uint16(kind))
-			queries[i] = query{i: i, prefix: prefix}
-		}
-	} else {
-		index = indexCreatedAtPrefix
-		queries = make([]query, 1)
-		prefix := make([]byte, 1)
-		prefix[0] = index
-		queries[0] = query{i: 0, prefix: prefix}
-		extraFilter = nil
-	}
-
-	var until uint32 = 4294967295
-	if filter.Until != nil {
-		if fu := uint32(*filter.Until); fu < until {
-			until = fu + 1
-		}
-	}
-	for i, q := range queries {
-		queries[i].startingPoint = binary.BigEndian.AppendUint32(q.prefix, uint32(until))
-		queries[i].results = make(chan *nostr.Event, 12)
-	}
-
-	// this is where we'll end the iteration
-	if filter.Since != nil {
-		if fs := uint32(*filter.Since); fs > since {
-			since = fs
-		}
-	}
-
-	return queries, extraFilter, since, nil
 }

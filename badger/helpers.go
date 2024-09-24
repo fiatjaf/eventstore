@@ -3,8 +3,9 @@ package badger
 import (
 	"encoding/binary"
 	"encoding/hex"
+	"strconv"
+	"strings"
 
-	"github.com/fiatjaf/eventstore"
 	"github.com/nbd-wtf/go-nostr"
 	"golang.org/x/exp/slices"
 )
@@ -13,7 +14,7 @@ func getTagIndexPrefix(tagValue string) ([]byte, int) {
 	var k []byte   // the key with full length for created_at and idx at the end, but not filled with these
 	var offset int // the offset -- i.e. where the prefix ends and the created_at and idx would start
 
-	if kind, pkb, d := eventstore.GetAddrTagElements(tagValue); len(pkb) == 32 {
+	if kind, pkb, d := getAddrTagElements(tagValue); len(pkb) == 32 {
 		// store value in the new special "a" tag index
 		k = make([]byte, 1+2+8+len(d)+4+4)
 		k[0] = indexTagAddrPrefix
@@ -127,4 +128,16 @@ func (b BadgerBackend) getIndexKeysForEvent(evt *nostr.Event, idx []byte) [][]by
 	}
 
 	return keys
+}
+
+func getAddrTagElements(tagValue string) (kind uint16, pkb []byte, d string) {
+	spl := strings.Split(tagValue, ":")
+	if len(spl) == 3 {
+		if pkb, _ := hex.DecodeString(spl[1]); len(pkb) == 32 {
+			if kind, err := strconv.ParseUint(spl[0], 10, 16); err == nil {
+				return uint16(kind), pkb, spl[2]
+			}
+		}
+	}
+	return 0, nil, ""
 }

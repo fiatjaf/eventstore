@@ -177,7 +177,7 @@ func runTestOn(t *testing.T, db eventstore.Store) {
 		require.ElementsMatch(t,
 			[]*nostr.Event{allEvents[2], allEvents[4], allEvents[6]},
 			results,
-			"tag query results error")
+			"tag query error")
 	}
 
 	// delete
@@ -191,7 +191,7 @@ func runTestOn(t *testing.T, db eventstore.Store) {
 		require.ElementsMatch(t,
 			slices.Concat(allEvents[0:4], allEvents[6:]),
 			results,
-			"second open-ended query results error")
+			"second open-ended query error")
 	}
 
 	{
@@ -200,7 +200,7 @@ func runTestOn(t *testing.T, db eventstore.Store) {
 		require.ElementsMatch(t,
 			[]*nostr.Event{allEvents[2], allEvents[6]},
 			results,
-			"second tag query results error")
+			"second tag query error")
 	}
 
 	{
@@ -209,7 +209,7 @@ func runTestOn(t *testing.T, db eventstore.Store) {
 		require.ElementsMatch(t,
 			[]*nostr.Event{allEvents[3]},
 			results,
-			"'e' tag query results error")
+			"'e' tag query error")
 	}
 
 	{
@@ -222,6 +222,69 @@ func runTestOn(t *testing.T, db eventstore.Store) {
 				allEvents[:i],
 				results,
 				"until query results error %d", i)
+		}
+	}
+
+	// test p-tag querying
+	{
+		p := "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+		p2 := "2eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+
+		newEvents := []*nostr.Event{
+			{Tags: nostr.Tags{nostr.Tag{"p", p}}, Kind: 1984, CreatedAt: nostr.Timestamp(100), Content: "first"},
+			{Tags: nostr.Tags{nostr.Tag{"p", p}, nostr.Tag{"t", "x"}}, Kind: 1984, CreatedAt: nostr.Timestamp(101), Content: "middle"},
+			{Tags: nostr.Tags{nostr.Tag{"p", p}}, Kind: 1984, CreatedAt: nostr.Timestamp(102), Content: "last"},
+			{Tags: nostr.Tags{nostr.Tag{"p", p}}, Kind: 1111, CreatedAt: nostr.Timestamp(101), Content: "bulufas"},
+			{Tags: nostr.Tags{nostr.Tag{"p", p}}, Kind: 1111, CreatedAt: nostr.Timestamp(102), Content: "safulub"},
+			{Tags: nostr.Tags{nostr.Tag{"p", p}}, Kind: 1, CreatedAt: nostr.Timestamp(103), Content: "bololo"},
+			{Tags: nostr.Tags{nostr.Tag{"p", p2}}, Kind: 1, CreatedAt: nostr.Timestamp(104), Content: "wololo"},
+			{Tags: nostr.Tags{nostr.Tag{"p", p}, nostr.Tag{"p", p2}}, Kind: 1, CreatedAt: nostr.Timestamp(104), Content: "trololo"},
+		}
+
+		sk := nostr.GeneratePrivateKey()
+		for _, newEvent := range newEvents {
+			newEvent.Sign(sk)
+			require.NoError(t, db.SaveEvent(ctx, newEvent))
+		}
+
+		{
+			results, err := w.QuerySync(ctx, nostr.Filter{
+				Tags:  nostr.TagMap{"p": []string{p}},
+				Kinds: []int{1984},
+				Limit: 2,
+			})
+			require.NoError(t, err)
+			require.ElementsMatch(t,
+				[]*nostr.Event{newEvents[2], newEvents[1]},
+				results,
+				"'p' tag 1 query error")
+		}
+
+		{
+			results, err := w.QuerySync(ctx, nostr.Filter{
+				Tags:  nostr.TagMap{"p": []string{p}, "t": []string{"x"}},
+				Limit: 4,
+			})
+			require.NoError(t, err)
+			require.ElementsMatch(t,
+				// the results won't be in canonical time order because this query is too awful, needs a kind
+				[]*nostr.Event{newEvents[1]},
+				results,
+				"'p' tag 2 query error")
+		}
+
+		{
+			results, err := w.QuerySync(ctx, nostr.Filter{
+				Tags:  nostr.TagMap{"p": []string{p, p2}},
+				Kinds: []int{1},
+				Limit: 4,
+			})
+			require.NoError(t, err)
+			require.ElementsMatch(t,
+				// the results won't be in canonical time order because this query is too awful, needs a kind
+				[]*nostr.Event{newEvents[5], newEvents[6], newEvents[7]},
+				results,
+				"'p' tag 3 query error")
 		}
 	}
 }

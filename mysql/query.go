@@ -66,8 +66,8 @@ func makePlaceHolders(n int) string {
 }
 
 func (b MySQLBackend) queryEventsSql(filter nostr.Filter, doCount bool) (string, []any, error) {
-	var conditions []string
-	var params []any
+	conditions := make([]string, 0, 7)
+	params := make([]any, 0, 20)
 
 	if len(filter.IDs) > 0 {
 		if len(filter.IDs) > b.QueryIDsLimit {
@@ -105,27 +105,26 @@ func (b MySQLBackend) queryEventsSql(filter nostr.Filter, doCount bool) (string,
 		conditions = append(conditions, `kind IN (`+makePlaceHolders(len(filter.Kinds))+`)`)
 	}
 
-	tagQuery := make([]string, 0, 1)
+	totalTags := 0
+	// we use a very bad implementation in which we only check the tag values and ignore the tag names
 	for _, values := range filter.Tags {
 		if len(values) == 0 {
 			// any tag set to [] is wrong
 			return "", nil, nil
 		}
 
-		// add these tags to the query
-		tagQuery = append(tagQuery, values...)
+		for _, tagValue := range values {
+			params = append(params, `%`+strings.ReplaceAll(tagValue, `%`, `\%`)+`%`)
+		}
 
-		if len(tagQuery) > b.QueryTagsLimit {
+		// each separate tag key is an independent condition
+		conditions = append(conditions, `tags LIKE ?`)
+
+		totalTags += len(values)
+		if totalTags > b.QueryTagsLimit {
 			// too many tags, fail everything
 			return "", nil, nil
 		}
-	}
-
-	// we use a very bad implementation in which we only check the tag values and
-	// ignore the tag names
-	for _, tagValue := range tagQuery {
-		conditions = append(conditions, `tags LIKE ?`)
-		params = append(params, `%`+strings.ReplaceAll(tagValue, `%`, `\%`)+`%`)
 	}
 
 	if filter.Since != nil {
