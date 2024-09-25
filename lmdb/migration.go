@@ -29,17 +29,12 @@ func (b *LMDBBackend) runMigrations() error {
 			version = binary.BigEndian.Uint16(v)
 		}
 
-		// do the migrations in increasing steps (there is no rollback)
-		//
-
 		// the 4 first migrations go to trash because on version 3 we need to export and import all the data anyway
-		if version < 4 {
-			// if there is any data in the relay we will stop and notify the user,
-			// otherwise we just set version to 3 and proceed
-
+		if version == 0 {
+			// if there is any data in the relay we will just set the version to the max without saying anything
 			cursor, err := txn.OpenCursor(b.indexId)
 			if err != nil {
-				return fmt.Errorf("failed to open cursor in migration 4: %w", err)
+				return fmt.Errorf("failed to open cursor in migration: %w", err)
 			}
 			defer cursor.Close()
 
@@ -50,12 +45,14 @@ func (b *LMDBBackend) runMigrations() error {
 				break
 			}
 
-			if hasAnyEntries {
-				return fmt.Errorf("your database is at version %d, but in order to migrate up to version 4 you must manually export all the events and then import again: run an old version of this software, export the data, then delete the database files, run the new version, import the data back in.", version)
+			if !hasAnyEntries {
+				b.setVersion(txn, 5)
+				return nil
 			}
-
-			b.bumpVersion(txn, 4)
 		}
+
+		// do the migrations in increasing steps (there is no rollback)
+		//
 
 		// this is when we added the ptag-kind-createdat index
 		if version < 5 {
@@ -101,7 +98,7 @@ func (b *LMDBBackend) runMigrations() error {
 			}
 
 			// bump version
-			if err := b.bumpVersion(txn, 5); err != nil {
+			if err := b.setVersion(txn, 5); err != nil {
 				return err
 			}
 		}
@@ -110,7 +107,7 @@ func (b *LMDBBackend) runMigrations() error {
 	})
 }
 
-func (b *LMDBBackend) bumpVersion(txn *lmdb.Txn, version uint16) error {
+func (b *LMDBBackend) setVersion(txn *lmdb.Txn, version uint16) error {
 	buf, err := txn.PutReserve(b.settingsStore, []byte{DB_VERSION}, 4, 0)
 	binary.BigEndian.PutUint16(buf, version)
 	return err

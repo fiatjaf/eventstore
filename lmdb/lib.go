@@ -43,7 +43,6 @@ func (b *LMDBBackend) Init() error {
 		b.MaxLimit = 500
 	}
 
-	// open lmdb
 	env, err := lmdb.NewEnv()
 	if err != nil {
 		return err
