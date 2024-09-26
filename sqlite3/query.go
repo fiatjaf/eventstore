@@ -3,6 +3,7 @@ package sqlite3
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -58,6 +59,14 @@ func (b SQLite3Backend) CountEvents(ctx context.Context, filter nostr.Filter) (i
 	return count, nil
 }
 
+var (
+	TooManyIDs       = errors.New("too many ids")
+	TooManyAuthors   = errors.New("too many authors")
+	TooManyKinds     = errors.New("too many kinds")
+	TooManyTagValues = errors.New("too many tag values")
+	EmptyTagSet      = errors.New("empty tag set")
+)
+
 func makePlaceHolders(n int) string {
 	return strings.TrimRight(strings.Repeat("?,", n), ",")
 }
@@ -69,7 +78,7 @@ func (b SQLite3Backend) queryEventsSql(filter nostr.Filter, doCount bool) (strin
 	if len(filter.IDs) > 0 {
 		if len(filter.IDs) > 500 {
 			// too many ids, fail everything
-			return "", nil, nil
+			return "", nil, TooManyIDs
 		}
 
 		for _, v := range filter.IDs {
@@ -81,7 +90,7 @@ func (b SQLite3Backend) queryEventsSql(filter nostr.Filter, doCount bool) (strin
 	if len(filter.Authors) > 0 {
 		if len(filter.Authors) > b.QueryAuthorsLimit {
 			// too many authors, fail everything
-			return "", nil, nil
+			return "", nil, TooManyAuthors
 		}
 
 		for _, v := range filter.Authors {
@@ -93,7 +102,7 @@ func (b SQLite3Backend) queryEventsSql(filter nostr.Filter, doCount bool) (strin
 	if len(filter.Kinds) > 0 {
 		if len(filter.Kinds) > 10 {
 			// too many kinds, fail everything
-			return "", nil, nil
+			return "", nil, TooManyKinds
 		}
 
 		for _, v := range filter.Kinds {
@@ -108,7 +117,7 @@ func (b SQLite3Backend) queryEventsSql(filter nostr.Filter, doCount bool) (strin
 	for _, values := range filter.Tags {
 		if len(values) == 0 {
 			// any tag set to [] is wrong
-			return "", nil, nil
+			return "", nil, EmptyTagSet
 		}
 
 		orTag := make([]string, len(values))
@@ -123,7 +132,7 @@ func (b SQLite3Backend) queryEventsSql(filter nostr.Filter, doCount bool) (strin
 		totalTags += len(values)
 		if totalTags > b.QueryTagsLimit {
 			// too many tags, fail everything
-			return "", nil, nil
+			return "", nil, TooManyTagValues
 		}
 	}
 
