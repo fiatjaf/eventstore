@@ -29,7 +29,7 @@ func (b *SliceStore) Close() {}
 
 func (b *SliceStore) QueryEvents(ctx context.Context, filter nostr.Filter) (chan *nostr.Event, error) {
 	ch := make(chan *nostr.Event)
-	if filter.Limit > b.MaxLimit || filter.Limit == 0 {
+	if filter.Limit > b.MaxLimit || (filter.Limit == 0 && !filter.LimitZero) {
 		filter.Limit = b.MaxLimit
 	}
 
