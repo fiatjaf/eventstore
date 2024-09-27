@@ -39,8 +39,10 @@ func (b *LMDBBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (cha
 	}
 
 	go func() {
-		defer close(ch)
+		ctx, cancel := context.WithCancel(ctx)
 		defer func() {
+			cancel()
+			close(ch)
 			for _, q := range queries {
 				q.free()
 			}

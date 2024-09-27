@@ -49,6 +49,9 @@ func (b BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch
 	}
 
 	go func() {
+		ctx, cancel := context.WithCancel(ctx)
+
+		defer cancel()
 		defer close(ch)
 
 		// actually iterate
