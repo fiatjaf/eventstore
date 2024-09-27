@@ -65,7 +65,9 @@ func (b *LMDBBackend) prepareQueries(filter nostr.Filter) (
 				return nil, nil, nil, "", nil, 0, fmt.Errorf("invalid id '%s'", idHex)
 			}
 			prefix := indexKeyPool.Get().([]byte)
-			hex.Decode(prefix[0:8], []byte(idHex[0:8*2]))
+			if _, err := hex.Decode(prefix[0:8], []byte(idHex[0:8*2])); err != nil {
+				return nil, nil, nil, "", nil, 0, fmt.Errorf("invalid id '%s'", idHex)
+			}
 			queries[i] = query{i: i, dbi: b.indexId, prefix: prefix[0:8], keySize: 8, timestampSize: 0}
 		}
 		return queries, nil, nil, "", nil, 0, nil
@@ -94,9 +96,15 @@ func (b *LMDBBackend) prepareQueries(filter nostr.Filter) (
 			if filter.Kinds != nil {
 				queries = make([]query, len(tagValues)*len(filter.Kinds))
 				for _, value := range tagValues {
+					if len(value) != 64 {
+						return nil, nil, nil, "", nil, 0, fmt.Errorf("invalid 'p' tag '%s'", value)
+					}
+
 					for _, kind := range filter.Kinds {
 						k := indexKeyPool.Get().([]byte)
-						hex.Decode(k[0:8], []byte(value[0:8*2])) // assume this is hex and valid
+						if _, err := hex.Decode(k[0:8], []byte(value[0:8*2])); err != nil {
+							return nil, nil, nil, "", nil, 0, fmt.Errorf("invalid 'p' tag '%s'", value)
+						}
 						binary.BigEndian.PutUint16(k[8:8+2], uint16(kind))
 						queries[i] = query{i: i, dbi: b.indexPTagKind, prefix: k[0 : 8+2], keySize: 8 + 2 + 4, timestampSize: 4}
 						i++
@@ -106,8 +114,14 @@ func (b *LMDBBackend) prepareQueries(filter nostr.Filter) (
 				// even if there are no kinds, in that case we will just return any kind and not care
 				queries = make([]query, len(tagValues))
 				for i, value := range tagValues {
+					if len(value) != 64 {
+						return nil, nil, nil, "", nil, 0, fmt.Errorf("invalid 'p' tag '%s'", value)
+					}
+
 					k := indexKeyPool.Get().([]byte)
-					hex.Decode(k[0:8], []byte(value[0:8*2])) // assume this is hex and valid
+					if _, err := hex.Decode(k[0:8], []byte(value[0:8*2])); err != nil {
+						return nil, nil, nil, "", nil, 0, fmt.Errorf("invalid 'p' tag '%s'", value)
+					}
 					queries[i] = query{i: i, dbi: b.indexPTagKind, prefix: k[0:8], keySize: 8 + 2 + 4, timestampSize: 4}
 				}
 			}
@@ -156,10 +170,12 @@ pubkeyMatching:
 			queries = make([]query, len(filter.Authors))
 			for i, pubkeyHex := range filter.Authors {
 				if len(pubkeyHex) != 64 {
-					return nil, nil, nil, "", nil, 0, fmt.Errorf("invalid pubkey '%s'", pubkeyHex)
+					return nil, nil, nil, "", nil, 0, fmt.Errorf("invalid author '%s'", pubkeyHex)
 				}
 				prefix := indexKeyPool.Get().([]byte)
-				hex.Decode(prefix[0:8], []byte(pubkeyHex[0:8*2]))
+				if _, err := hex.Decode(prefix[0:8], []byte(pubkeyHex[0:8*2])); err != nil {
+					return nil, nil, nil, "", nil, 0, fmt.Errorf("invalid author '%s'", pubkeyHex)
+				}
 				queries[i] = query{i: i, dbi: b.indexPubkey, prefix: prefix[0:8], keySize: 8 + 4, timestampSize: 4}
 			}
 		} else {
@@ -169,10 +185,12 @@ pubkeyMatching:
 			for _, pubkeyHex := range filter.Authors {
 				for _, kind := range filter.Kinds {
 					if len(pubkeyHex) != 64 {
-						return nil, nil, nil, "", nil, 0, fmt.Errorf("invalid pubkey '%s'", pubkeyHex)
+						return nil, nil, nil, "", nil, 0, fmt.Errorf("invalid author '%s'", pubkeyHex)
 					}
 					prefix := indexKeyPool.Get().([]byte)
-					hex.Decode(prefix[0:8], []byte(pubkeyHex[0:8*2]))
+					if _, err := hex.Decode(prefix[0:8], []byte(pubkeyHex[0:8*2])); err != nil {
+						return nil, nil, nil, "", nil, 0, fmt.Errorf("invalid author '%s'", pubkeyHex)
+					}
 					binary.BigEndian.PutUint16(prefix[8:8+2], uint16(kind))
 					queries[i] = query{i: i, dbi: b.indexPubkeyKind, prefix: prefix[0 : 8+2], keySize: 10 + 4, timestampSize: 4}
 					i++
