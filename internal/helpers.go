@@ -55,3 +55,13 @@ func ChooseNarrowestTag(filter nostr.Filter) (key string, values []string, goodn
 
 	return tagKey, tagValues, goodness
 }
+
+func CopyMapWithoutKey[K comparable, V any](originalMap map[K]V, key K) map[K]V {
+	newMap := make(map[K]V, len(originalMap)-1)
+	for k, v := range originalMap {
+		if k != key {
+			newMap[k] = v
+		}
+	}
+	return newMap
+}

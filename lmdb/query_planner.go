@@ -141,7 +141,7 @@ func (b *LMDBBackend) prepareQueries(filter nostr.Filter) (
 		}
 
 		// add an extra useless tag if available
-		delete(filter.Tags, tagKey)
+		filter.Tags = internal.CopyMapWithoutKey(filter.Tags, tagKey)
 		if len(filter.Tags) > 0 {
 			extraTagKey, extraTagValues, _ = internal.ChooseNarrowestTag(filter)
 		}

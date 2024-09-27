@@ -79,12 +79,10 @@ func prepareQueries(filter nostr.Filter) (
 			i++
 		}
 
-		delete(filter.Tags, tagKey)
-
 		extraFilter = &nostr.Filter{
 			Kinds:   filter.Kinds,
 			Authors: filter.Authors,
-			Tags:    filter.Tags,
+			Tags:    internal.CopyMapWithoutKey(filter.Tags, tagKey),
 		}
 
 		return queries, extraFilter, since, nil
