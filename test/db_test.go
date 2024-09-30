@@ -119,6 +119,7 @@ func runTestOn(t *testing.T, db eventstore.Store) {
 	{
 		results, err := w.QuerySync(ctx, nostr.Filter{})
 		require.NoError(t, err)
+		require.Len(t, results, len(allEvents))
 		require.ElementsMatch(t,
 			allEvents,
 			results,
@@ -140,6 +141,7 @@ func runTestOn(t *testing.T, db eventstore.Store) {
 	{
 		results, err := w.QuerySync(ctx, nostr.Filter{IDs: []string{allEvents[7].ID, allEvents[9].ID}})
 		require.NoError(t, err)
+		require.Len(t, results, 2)
 		require.ElementsMatch(t,
 			[]*nostr.Event{allEvents[7], allEvents[9]},
 			results,

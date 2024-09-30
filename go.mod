@@ -3,7 +3,6 @@ module github.com/fiatjaf/eventstore
 go 1.23.0
 
 require (
-	fiatjaf.com/lib v0.1.1
 	github.com/PowerDNS/lmdb-go v1.9.2
 	github.com/aquasecurity/esquery v0.2.0
 	github.com/blugelabs/bluge v0.2.2
@@ -11,12 +10,13 @@ require (
 	github.com/elastic/go-elasticsearch/v8 v8.10.1
 	github.com/fergusstrange/embedded-postgres v1.28.0
 	github.com/fiatjaf/cli/v3 v3.0.0-20240723181502-e7dd498b16ae
+	github.com/fiatjaf/merge-sorted-slices v0.0.5
 	github.com/go-sql-driver/mysql v1.7.1
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/lib/pq v1.10.9
 	github.com/mailru/easyjson v0.7.7
 	github.com/mattn/go-sqlite3 v1.14.18
-	github.com/nbd-wtf/go-nostr v0.37.2
+	github.com/nbd-wtf/go-nostr v0.38.1
 	github.com/opensearch-project/opensearch-go/v4 v4.0.0
 	github.com/stretchr/testify v1.9.0
 	golang.org/x/exp v0.0.0-20240909161429-701f63a606c0

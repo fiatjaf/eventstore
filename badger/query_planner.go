@@ -9,6 +9,13 @@ import (
 	"github.com/nbd-wtf/go-nostr"
 )
 
+type query struct {
+	i             int
+	prefix        []byte
+	startingPoint []byte
+	skipTimestamp bool
+}
+
 func prepareQueries(filter nostr.Filter) (
 	queries []query,
 	extraFilter *nostr.Filter,
@@ -30,7 +37,6 @@ func prepareQueries(filter nostr.Filter) (
 
 		for i, q := range queries {
 			queries[i].startingPoint = binary.BigEndian.AppendUint32(q.prefix, uint32(until))
-			queries[i].results = make(chan *nostr.Event, 12)
 		}
 
 		// this is where we'll end the iteration
