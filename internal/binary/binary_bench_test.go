@@ -11,43 +11,6 @@ import (
 	"github.com/nbd-wtf/go-nostr/test_common"
 )
 
-func BenchmarkBinaryEncoding(b *testing.B) {
-	events := make([]*nostr.Event, len(test_common.NormalEvents))
-	binaryEvents := make([]*Event, len(test_common.NormalEvents))
-	for i, jevt := range test_common.NormalEvents {
-		evt := &nostr.Event{}
-		json.Unmarshal([]byte(jevt), evt)
-		events[i] = evt
-		binaryEvents[i] = BinaryEvent(evt)
-	}
-
-	b.Run("easyjson.Marshal", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			for _, evt := range events {
-				easyjson.Marshal(evt)
-			}
-		}
-	})
-
-	b.Run("gob.Encode", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			for _, evt := range events {
-				var buf bytes.Buffer
-				gob.NewEncoder(&buf).Encode(evt)
-				_ = buf.Bytes()
-			}
-		}
-	})
-
-	b.Run("binary.Marshal", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			for _, evt := range events {
-				Marshal(evt)
-			}
-		}
-	})
-}
-
 func BenchmarkBinaryDecoding(b *testing.B) {
 	events := make([][]byte, len(test_common.NormalEvents))
 	gevents := make([][]byte, len(test_common.NormalEvents))
