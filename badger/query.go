@@ -19,10 +19,7 @@ type queryEvent struct {
 	query int
 }
 
-var (
-	exit        = errors.New("exit")
-	BatchFilled = errors.New("batch-filled")
-)
+var BatchFilled = errors.New("batch-filled")
 
 func (b BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (chan *nostr.Event, error) {
 	ch := make(chan *nostr.Event)
@@ -51,6 +48,7 @@ func (b BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch
 		iterators := make([]*badger.Iterator, len(queries))
 		exhausted := make([]bool, len(queries)) // indicates that a query won't be used anymore
 		results := make([][]*nostr.Event, len(queries))
+		pulledPerQuery := make([]int, len(queries))
 		secondPhaseParticipants := make([]int, 0, len(queries)+1)
 
 		batchSizePerQuery := batchSizePerNumberOfQueries(limit, len(queries))
@@ -64,6 +62,15 @@ func (b BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch
 
 		secondPhase := false                 // after we have gathered enough events we will change the way we iterate
 		remainingUnexhausted := len(queries) // when all queries are exhausted we can finally end this thing
+
+		exhaust := func(q int) {
+			exhausted[q] = true
+			remainingUnexhausted--
+			if q == furtherIter {
+				furtherEvent = nil
+				furtherIter = -1
+			}
+		}
 
 		var partialResults []*nostr.Event
 
@@ -103,17 +110,12 @@ func (b BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch
 				}
 
 				it := iterators[q]
-				pulled := 0
+				pulledThisIteration := 0
 
 				for it.Seek(query.startingPoint); ; it.Next() {
 					if !it.Valid() {
-						exhausted[q] = true
-						remainingUnexhausted--
 						// fmt.Println("      reached end")
-						if q == furtherIter {
-							furtherEvent = nil
-							furtherIter = -1
-						}
+						exhaust(q)
 						break
 					}
 
@@ -126,13 +128,8 @@ func (b BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch
 					if !query.skipTimestamp {
 						createdAt := binary.BigEndian.Uint32(key[idxOffset-4 : idxOffset])
 						if createdAt < since {
-							exhausted[q] = true
-							remainingUnexhausted--
 							// fmt.Println("      (")
-							if q == furtherIter {
-								furtherEvent = nil
-								furtherIter = -1
-							}
+							exhaust(q)
 							break
 						}
 					}
@@ -232,8 +229,13 @@ func (b BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch
 							}
 						}
 
-						pulled++
-						if pulled > batchSizePerQuery {
+						pulledPerQuery[q]++
+						pulledThisIteration++
+						if pulledThisIteration > batchSizePerQuery {
+							return BatchFilled
+						}
+						if pulledPerQuery[q] >= limit {
+							exhaust(q)
 							return BatchFilled
 						}
 
@@ -286,8 +288,7 @@ func (b BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch
 					// we also automatically exhaust any of the iterators that have already passed the
 					// cutting point (`since`)
 					if results[q][len(results[q])-1].CreatedAt < oldestElligible {
-						exhausted[q] = true
-						remainingUnexhausted--
+						exhaust(q)
 						continue
 					}
 
