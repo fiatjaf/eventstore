@@ -85,9 +85,9 @@ func (b BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch
 
 		for c := 0; ; c++ {
 			// fmt.Println("  iteration", c)
-			if c > 10 {
-				panic("")
-			}
+			// if c > 10 {
+			// 	panic("")
+			// }
 
 			// we will go through all the iterators in batches until we have pulled all the required results
 			for q, query := range queries {
