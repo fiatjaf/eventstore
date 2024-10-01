@@ -254,11 +254,6 @@ func (b BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch
 			} else if totalPulled >= limit {
 				// fmt.Println("have enough!")
 
-				// once we reached the limit we will stop fetching from the iterator that has gone further
-				// we just mark it as exhausted so we will never try it again
-				exhausted[furtherIter] = true
-				remainingUnexhausted--
-
 				// we will exclude this oldest number as it is not relevant anymore
 				// (we now want to keep track only of the oldest among the remaining iterators)
 				furtherEvent = nil
