@@ -10,7 +10,7 @@ require (
 	github.com/elastic/go-elasticsearch/v8 v8.10.1
 	github.com/fergusstrange/embedded-postgres v1.28.0
 	github.com/fiatjaf/cli/v3 v3.0.0-20240723181502-e7dd498b16ae
-	github.com/fiatjaf/merge-sorted-slices v0.0.5
+	github.com/fiatjaf/merge-sorted-slices v0.0.6
 	github.com/go-sql-driver/mysql v1.7.1
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/lib/pq v1.10.9

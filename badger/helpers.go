@@ -147,17 +147,29 @@ func getAddrTagElements(tagValue string) (kind uint16, pkb []byte, d string) {
 // mergeSortMultipleBatches takes the results of multiple iterators, which are already sorted,
 // and merges them into a single big sorted slice
 func mergeSortMultiple(batches [][]*nostr.Event, limit int) []*nostr.Event {
+	// clear up empty lists here while simultaneously computing the total count.
+	// this helps because if there are a bunch of empty lists then this pre-clean
+	//   step will get us in the faster 'merge' branch otherwise we would go to the other.
+	// we would have to do the cleaning anyway inside it.
+	// and even if we still go on the other we save one iteration by already computing the
+	//   total count.
+	total := 0
+	for i := len(batches) - 1; i >= 0; i-- {
+		if len(batches[i]) == 0 {
+			batches = swapDelete(batches, i)
+		} else {
+			total += len(batches[i])
+		}
+	}
+
+	// this amazing equation will ensure that if one of the two sides goes very small (like 1 or 2)
+	//   the other can go very high (like 500) and we're still in the 'merge' branch.
+	// if values go somewhere in the middle then they may match the 'merge' branch (batches=20,limit=70)
+	//   or not (batches=25, limit=60)
 	if math.Log(float64(len(batches)*2))+math.Log(float64(limit)) < 8 {
-		// this amazing function will ensure that if one of the two sides goes very small (like 1 or 2)
-		// the other can go very high (like 500) and we're still here. if values go somewhere in the middle
-		// then they may match here (batches=20,limit=70) or not (batches=25, limit=60)
-		return mergesortedslices.MergeFuncLimit(batches, nostr.CompareEventPtr, limit)
+		return mergesortedslices.MergeFuncLimitNoEmptyLists(batches, nostr.CompareEventPtr, limit)
 	} else {
 		// use quicksort in a dumb way that will still be fast because it's cheated
-		total := 0
-		for _, one := range batches {
-			total += len(one)
-		}
 		merged := make([]*nostr.Event, total)
 
 		lastIndex := 0
@@ -200,4 +212,9 @@ func filterMatchesTags(ef *nostr.Filter, event *nostr.Event) bool {
 		}
 	}
 	return true
+}
+
+func swapDelete[A any](arr []A, i int) []A {
+	arr[i] = arr[len(arr)-1]
+	return arr[:len(arr)-1]
 }

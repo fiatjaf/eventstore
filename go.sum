@@ -97,8 +97,8 @@ github.com/fergusstrange/embedded-postgres v1.28.0 h1:Atixd24HCuBHBavnG4eiZAjRiz
 github.com/fergusstrange/embedded-postgres v1.28.0/go.mod h1:t/MLs0h9ukYM6FSt99R7InCHs1nW0ordoVCcnzmpTYw=
 github.com/fiatjaf/cli/v3 v3.0.0-20240723181502-e7dd498b16ae h1:0B/1dU3YECIbPoBIRTQ4c0scZCNz9TVHtQpiODGrTTo=
 github.com/fiatjaf/cli/v3 v3.0.0-20240723181502-e7dd498b16ae/go.mod h1:aAWPO4bixZZxPtOnH6K3q4GbQ0jftUNDW9Oa861IRew=
-github.com/fiatjaf/merge-sorted-slices v0.0.5 h1:Mmt3TdONTnhp3F4YHN/Uta8tFOm5RhBhdzuLEucStAw=
-github.com/fiatjaf/merge-sorted-slices v0.0.5/go.mod h1:k7H3l+OhO2m/PA99FdBjF29Z0TAwRClgKA9PvoT6obY=
+github.com/fiatjaf/merge-sorted-slices v0.0.6 h1:6jawP9Zx5RTKEHvQt6z+8zvmtCkb1JTz1498N3OE70A=
+github.com/fiatjaf/merge-sorted-slices v0.0.6/go.mod h1:k7H3l+OhO2m/PA99FdBjF29Z0TAwRClgKA9PvoT6obY=
 github.com/fogleman/gg v1.2.1-0.20190220221249-0403632d5b90/go.mod h1:R/bRT+9gY/C5z7JzPU0zXsXHKM4/ayA+zqcVNZzPa1k=
 github.com/fsnotify/fsnotify v1.4.7/go.mod h1:jwhsz4b93w/PPRr/qN1Yymfu8t87LnFCMoQvtojpjFo=
 github.com/go-sql-driver/mysql v1.6.0/go.mod h1:DCzpHaOWr8IXmIStZouvnhqoel9Qv2LBy8hT2VhHyBg=
