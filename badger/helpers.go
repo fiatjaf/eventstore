@@ -1,6 +1,7 @@
 package badger
 
 import (
+	"cmp"
 	"encoding/binary"
 	"encoding/hex"
 	"math"
@@ -146,7 +147,7 @@ func getAddrTagElements(tagValue string) (kind uint16, pkb []byte, d string) {
 
 // mergeSortMultipleBatches takes the results of multiple iterators, which are already sorted,
 // and merges them into a single big sorted slice
-func mergeSortMultiple(batches [][]*nostr.Event, limit int) []*nostr.Event {
+func mergeSortMultiple(batches [][]iterEvent, limit int, dst []iterEvent) []iterEvent {
 	// clear up empty lists here while simultaneously computing the total count.
 	// this helps because if there are a bunch of empty lists then this pre-clean
 	//   step will get us in the faster 'merge' branch otherwise we would go to the other.
@@ -167,27 +168,25 @@ func mergeSortMultiple(batches [][]*nostr.Event, limit int) []*nostr.Event {
 	// if values go somewhere in the middle then they may match the 'merge' branch (batches=20,limit=70)
 	//   or not (batches=25, limit=60)
 	if math.Log(float64(len(batches)*2))+math.Log(float64(limit)) < 8 {
-		return mergesortedslices.MergeFuncLimitNoEmptyLists(batches, nostr.CompareEventPtr, limit)
+		return mergesortedslices.MergeFuncNoEmptyListsIntoSlice(dst, batches, compareIterEvent)
 	} else {
 		// use quicksort in a dumb way that will still be fast because it's cheated
-		merged := make([]*nostr.Event, total)
-
 		lastIndex := 0
 		for _, batch := range batches {
-			n := copy(merged[lastIndex:], batch)
+			n := copy(dst[lastIndex:], batch)
 			lastIndex += n
 		}
 
-		slices.SortFunc(merged, nostr.CompareEventPtr)
+		slices.SortFunc(dst, compareIterEvent)
 
-		if limit > len(merged) {
-			limit = len(merged)
+		if limit > len(dst) {
+			limit = len(dst)
 		}
 		for i, j := 0, limit-1; i < j; i, j = i+1, j-1 {
-			merged[i], merged[j] = merged[j], merged[i]
+			dst[i], dst[j] = dst[j], dst[i]
 		}
 
-		return merged[0:limit]
+		return dst[0:limit]
 	}
 }
 
@@ -200,7 +199,7 @@ func batchSizePerNumberOfQueries(totalFilterLimit int, numberOfQueries int) int 
 
 	return int(
 		math.Ceil(
-			math.Pow(float64(totalFilterLimit), 0.90) / math.Pow(float64(numberOfQueries), 0.71),
+			math.Pow(float64(totalFilterLimit), 0.80) / math.Pow(float64(numberOfQueries), 0.71),
 		),
 	)
 }
@@ -217,4 +216,21 @@ func filterMatchesTags(ef *nostr.Filter, event *nostr.Event) bool {
 func swapDelete[A any](arr []A, i int) []A {
 	arr[i] = arr[len(arr)-1]
 	return arr[:len(arr)-1]
+}
+
+func compareIterEvent(a, b iterEvent) int {
+	if a.Event == nil {
+		if b.Event == nil {
+			return 0
+		} else {
+			return -1
+		}
+	} else if b.Event == nil {
+		return 1
+	}
+
+	if a.CreatedAt == b.CreatedAt {
+		return strings.Compare(a.ID, b.ID)
+	}
+	return cmp.Compare(a.CreatedAt, b.CreatedAt)
 }
