@@ -29,7 +29,7 @@ func (b *LMDBBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (cha
 
 	// max number of events we'll return
 	limit := b.MaxLimit / 4
-	if filter.Limit > 0 && filter.Limit < b.MaxLimit {
+	if filter.Limit > 0 && filter.Limit <= b.MaxLimit {
 		limit = filter.Limit
 	}
 
