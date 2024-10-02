@@ -1,4 +1,6 @@
 cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
+fiatjaf.com/lib v0.2.0 h1:TgIJESbbND6GjOgGHxF5jsO6EMjuAxIzZHPo5DXYexs=
+fiatjaf.com/lib v0.2.0/go.mod h1:Ycqq3+mJ9jAWu7XjbQI1cVr+OFgnHn79dQR5oTII47g=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAElWljhcU=
 github.com/PowerDNS/lmdb-go v1.9.2 h1:Cmgerh9y3ZKBZGz1irxSShhfmFyRUh+Zdk4cZk7ZJvU=
@@ -97,8 +99,6 @@ github.com/fergusstrange/embedded-postgres v1.28.0 h1:Atixd24HCuBHBavnG4eiZAjRiz
 github.com/fergusstrange/embedded-postgres v1.28.0/go.mod h1:t/MLs0h9ukYM6FSt99R7InCHs1nW0ordoVCcnzmpTYw=
 github.com/fiatjaf/cli/v3 v3.0.0-20240723181502-e7dd498b16ae h1:0B/1dU3YECIbPoBIRTQ4c0scZCNz9TVHtQpiODGrTTo=
 github.com/fiatjaf/cli/v3 v3.0.0-20240723181502-e7dd498b16ae/go.mod h1:aAWPO4bixZZxPtOnH6K3q4GbQ0jftUNDW9Oa861IRew=
-github.com/fiatjaf/merge-sorted-slices v0.0.7 h1:Oeytx6GXF1klHRpbA3XDYUiCZkmUImviAoffSIXn9vs=
-github.com/fiatjaf/merge-sorted-slices v0.0.7/go.mod h1:k7H3l+OhO2m/PA99FdBjF29Z0TAwRClgKA9PvoT6obY=
 github.com/fogleman/gg v1.2.1-0.20190220221249-0403632d5b90/go.mod h1:R/bRT+9gY/C5z7JzPU0zXsXHKM4/ayA+zqcVNZzPa1k=
 github.com/fsnotify/fsnotify v1.4.7/go.mod h1:jwhsz4b93w/PPRr/qN1Yymfu8t87LnFCMoQvtojpjFo=
 github.com/go-sql-driver/mysql v1.6.0/go.mod h1:DCzpHaOWr8IXmIStZouvnhqoel9Qv2LBy8hT2VhHyBg=

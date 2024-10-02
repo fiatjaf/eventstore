@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	mergesortedslices "github.com/fiatjaf/merge-sorted-slices"
+	mergesortedslices "fiatjaf.com/lib/merge-sorted-slices"
 	"github.com/nbd-wtf/go-nostr"
 	"golang.org/x/exp/slices"
 )
