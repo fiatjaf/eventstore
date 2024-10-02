@@ -50,16 +50,14 @@ func prepareQueries(filter nostr.Filter) (
 	var index byte
 
 	if len(filter.IDs) > 0 {
-		index = indexIdPrefix
 		queries = make([]query, len(filter.IDs))
 		for i, idHex := range filter.IDs {
 			prefix := make([]byte, 1+8)
-			prefix[0] = index
+			prefix[0] = indexIdPrefix
 			if len(idHex) != 64 {
 				return nil, nil, 0, fmt.Errorf("invalid id '%s'", idHex)
 			}
-			idPrefix8, _ := hex.DecodeString(idHex[0 : 8*2])
-			copy(prefix[1:], idPrefix8)
+			hex.Decode(prefix[1:], []byte(idHex[0:8*2]))
 			queries[i] = query{i: i, prefix: prefix, skipTimestamp: true}
 		}
 
@@ -97,20 +95,17 @@ func prepareQueries(filter nostr.Filter) (
 pubkeyMatching:
 	if len(filter.Authors) > 0 {
 		if len(filter.Kinds) == 0 {
-			index = indexPubkeyPrefix
 			queries = make([]query, len(filter.Authors))
 			for i, pubkeyHex := range filter.Authors {
 				if len(pubkeyHex) != 64 {
 					return nil, nil, 0, fmt.Errorf("invalid pubkey '%s'", pubkeyHex)
 				}
-				pubkeyPrefix8, _ := hex.DecodeString(pubkeyHex[0 : 8*2])
 				prefix := make([]byte, 1+8)
-				prefix[0] = index
-				copy(prefix[1:], pubkeyPrefix8)
+				prefix[0] = indexPubkeyPrefix
+				hex.Decode(prefix[1:], []byte(pubkeyHex[0:8*2]))
 				queries[i] = query{i: i, prefix: prefix}
 			}
 		} else {
-			index = indexPubkeyKindPrefix
 			queries = make([]query, len(filter.Authors)*len(filter.Kinds))
 			i := 0
 			for _, pubkeyHex := range filter.Authors {
@@ -118,10 +113,10 @@ pubkeyMatching:
 					if len(pubkeyHex) != 64 {
 						return nil, nil, 0, fmt.Errorf("invalid pubkey '%s'", pubkeyHex)
 					}
-					pubkeyPrefix8, _ := hex.DecodeString(pubkeyHex[0 : 8*2])
+
 					prefix := make([]byte, 1+8+2)
-					prefix[0] = index
-					copy(prefix[1:], pubkeyPrefix8)
+					prefix[0] = indexPubkeyKindPrefix
+					hex.Decode(prefix[1:], []byte(pubkeyHex[0:8*2]))
 					binary.BigEndian.PutUint16(prefix[1+8:], uint16(kind))
 					queries[i] = query{i: i, prefix: prefix}
 					i++

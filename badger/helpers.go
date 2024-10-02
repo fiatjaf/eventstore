@@ -163,30 +163,47 @@ func mergeSortMultiple(batches [][]iterEvent, limit int, dst []iterEvent) []iter
 		}
 	}
 
+	if limit == -1 {
+		limit = total
+	}
+
 	// this amazing equation will ensure that if one of the two sides goes very small (like 1 or 2)
 	//   the other can go very high (like 500) and we're still in the 'merge' branch.
 	// if values go somewhere in the middle then they may match the 'merge' branch (batches=20,limit=70)
 	//   or not (batches=25, limit=60)
 	if math.Log(float64(len(batches)*2))+math.Log(float64(limit)) < 8 {
+		if dst == nil {
+			dst = make([]iterEvent, limit)
+		} else if cap(dst) < limit {
+			dst = slices.Grow(dst, limit-len(dst))
+		}
+		dst = dst[0:limit]
 		return mergesortedslices.MergeFuncNoEmptyListsIntoSlice(dst, batches, compareIterEvent)
 	} else {
+		if dst == nil {
+			dst = make([]iterEvent, total)
+		} else if cap(dst) < total {
+			dst = slices.Grow(dst, total-len(dst))
+		}
+		dst = dst[0:total]
+
 		// use quicksort in a dumb way that will still be fast because it's cheated
 		lastIndex := 0
 		for _, batch := range batches {
-			n := copy(dst[lastIndex:], batch)
-			lastIndex += n
+			copy(dst[lastIndex:], batch)
+			lastIndex += len(batch)
 		}
 
 		slices.SortFunc(dst, compareIterEvent)
 
-		if limit > len(dst) {
-			limit = len(dst)
-		}
-		for i, j := 0, limit-1; i < j; i, j = i+1, j-1 {
+		for i, j := 0, total-1; i < j; i, j = i+1, j-1 {
 			dst[i], dst[j] = dst[j], dst[i]
 		}
 
-		return dst[0:limit]
+		if limit < len(dst) {
+			return dst[0:limit]
+		}
+		return dst
 	}
 }
 
