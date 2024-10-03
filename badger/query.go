@@ -66,6 +66,7 @@ func (b BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch
 		var secondPhaseResultsA []iterEvent
 		var secondPhaseResultsB []iterEvent
 		var secondPhaseResultsToggle bool // this is just a dummy thing we use to keep track of the alternating
+		var secondPhaseHasResultsPending bool
 
 		remainingUnexhausted := len(queries) // when all queries are exhausted we can finally end this thing
 		batchSizePerQuery := batchSizePerNumberOfQueries(limit, remainingUnexhausted)
@@ -100,25 +101,23 @@ func (b BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch
 		for c := 0; ; c++ {
 			batchSizePerQuery = batchSizePerNumberOfQueries(limit, remainingUnexhausted)
 
-			// fmt.Println("  iteration", c, "remaining", remainingUnexhausted, "batch size", batchSizePerQuery)
+			// fmt.Println("  iteration", c, "remaining", remainingUnexhausted, "batchsize", batchSizePerQuery)
 			// we will go through all the iterators in batches until we have pulled all the required results
 			for q, query := range queries {
 				if exhausted[q] {
-					// fmt.Println(" exhausted")
 					continue
 				}
 				if oldest.q == q && remainingUnexhausted > 1 {
-					// fmt.Println(" skipping for now")
 					continue
 				}
-				// fmt.Println("    query", q, unsafe.Pointer(&results[q]), len(results[q]))
+				// fmt.Println("    query", q, unsafe.Pointer(&results[q]), hex.EncodeToString(query.prefix), len(results[q]))
 
 				it := iterators[q]
 				pulledThisIteration := 0
 
 				for {
 					if !it.Valid() {
-						// fmt.Println(" reached end")
+						// fmt.Println("      reached end")
 						exhaust(q)
 						it.Next()
 						break
@@ -198,6 +197,7 @@ func (b BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch
 								// when we don't have the oldest set, we will keep the results
 								//   and not change the cutting point -- it's bad, but hopefully not that bad.
 								results[q] = append(results[q], evt)
+								secondPhaseHasResultsPending = true
 							} else if nextThreshold.CreatedAt > oldest.CreatedAt {
 								// fmt.Println("          b2", nextThreshold.CreatedAt, ">", oldest.CreatedAt)
 								// one of the events we have stored is the actual next threshold
@@ -214,6 +214,7 @@ func (b BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch
 								// finally
 								// add this to the results to be merged later
 								results[q] = append(results[q], evt)
+								secondPhaseHasResultsPending = true
 							} else if nextThreshold.CreatedAt < evt.CreatedAt {
 								// the next last event in the firstPhaseResults is the next threshold
 								// fmt.Println("          b3", nextThreshold.CreatedAt, "<", oldest.CreatedAt)
@@ -223,6 +224,7 @@ func (b BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch
 								// fmt.Println("            new since", since)
 								// add this to the results to be merged later
 								results[q] = append(results[q], evt)
+								secondPhaseHasResultsPending = true
 								// update the oldest event
 								if evt.CreatedAt < oldest.CreatedAt {
 									oldest = evt
@@ -271,7 +273,7 @@ func (b BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch
 
 			// we will do this check if we don't accumulated the requested number of events yet
 			// fmt.Println("oldest", oldest.Event, "from iter", oldest.q)
-			if secondPhase {
+			if secondPhase && secondPhaseHasResultsPending && (oldest.Event == nil || remainingUnexhausted == 0) {
 				// fmt.Println("second phase aggregation!")
 				// when we are in the second phase we will aggressively aggregate results on every iteration
 				//
@@ -314,8 +316,8 @@ func (b BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch
 				for _, q := range secondPhaseParticipants {
 					results[q] = results[q][:0]
 				}
-			} else if firstPhaseTotalPulled >= limit {
-				// fmt.Println("have enough!", firstPhaseTotalPulled, "/", limit)
+			} else if !secondPhase && firstPhaseTotalPulled >= limit && remainingUnexhausted > 0 {
+				// fmt.Println("have enough!", firstPhaseTotalPulled, "/", limit, "remaining", remainingUnexhausted)
 
 				// we will exclude this oldest number as it is not relevant anymore
 				// (we now want to keep track only of the oldest among the remaining iterators)
@@ -332,7 +334,9 @@ func (b BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch
 				//   keep it but also discard the previous since, moving the needle one back -- for example,
 				//   if we get an `8` we can keep it and move the `since` parameter to `10`, discarding `15`
 				//   in the process.
-				firstPhaseResults = mergeSortMultiple(results, limit, nil)
+				all := make([][]iterEvent, len(results))
+				copy(all, results) // we have to use this otherwise mergeSortMultiple will scramble our results slice
+				firstPhaseResults = mergeSortMultiple(all, limit, nil)
 				oldest = firstPhaseResults[limit-1]
 				since = uint32(oldest.CreatedAt)
 				// fmt.Println("new since", since)
@@ -366,8 +370,6 @@ func (b BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch
 
 				// from now on we won't run this block anymore
 				secondPhase = true
-			} else {
-				// fmt.Println("not enough", firstPhaseTotalPulled, "/", limit)
 			}
 
 			// fmt.Println("remaining", remainingUnexhausted)
@@ -376,10 +378,6 @@ func (b BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch
 			}
 		}
 
-		// fmt.Println("results", len(results))
-		// for q, res := range results {
-		// fmt.Println(" ", q, len(res))
-		// }
 		// fmt.Println("is secondPhase?", secondPhase)
 
 		var combinedResults []iterEvent
@@ -401,7 +399,6 @@ func (b BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch
 			}
 
 			all := [][]iterEvent{firstPhaseResults, secondPhaseResults}
-			// fmt.Println("~", len(all[0]), len(all[1]))
 			combinedResults = mergeSortMultiple(all, limit, combinedResults)
 			// fmt.Println("final combinedResults", len(combinedResults), cap(combinedResults), limit)
 		} else {
