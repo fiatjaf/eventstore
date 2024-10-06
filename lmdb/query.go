@@ -156,9 +156,13 @@ func (b *LMDBBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (cha
 		// first pass
 		emitQueue := make(priorityQueue, 0, len(queries))
 		for _, q := range queries {
-			evt, ok := <-q.results
-			if ok {
-				emitQueue = append(emitQueue, &queryEvent{Event: evt, query: q.i})
+			select {
+			case evt, ok := <-q.results:
+				if ok {
+					emitQueue = append(emitQueue, &queryEvent{Event: evt, query: q.i})
+				}
+			case <-ctx.Done():
+				return
 			}
 		}
 
