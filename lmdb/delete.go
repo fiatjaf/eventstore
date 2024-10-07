@@ -21,7 +21,7 @@ func (b *LMDBBackend) DeleteEvent(ctx context.Context, evt *nostr.Event) error {
 		}
 
 		// calculate all index keys we have for this event and delete them
-		for _, k := range b.getIndexKeysForEvent(evt) {
+		for k := range b.getIndexKeysForEvent(evt) {
 			err := txn.Del(k.dbi, k.key, idx)
 			k.free()
 			if err != nil {

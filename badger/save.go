@@ -37,7 +37,7 @@ func (b *BadgerBackend) SaveEvent(ctx context.Context, evt *nostr.Event) error {
 			return err
 		}
 
-		for _, k := range b.getIndexKeysForEvent(evt, idx[1:]) {
+		for k := range b.getIndexKeysForEvent(evt, idx[1:]) {
 			if err := txn.Set(k, nil); err != nil {
 				return err
 			}

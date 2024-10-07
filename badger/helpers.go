@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"encoding/binary"
 	"encoding/hex"
+	"iter"
 	"math"
 	"strconv"
 	"strings"
@@ -42,95 +43,104 @@ func getTagIndexPrefix(tagValue string) ([]byte, int) {
 	return k, offset
 }
 
-func (b BadgerBackend) getIndexKeysForEvent(evt *nostr.Event, idx []byte) [][]byte {
-	keys := make([][]byte, 0, 18)
-
-	// indexes
-	{
-		// ~ by id
-		idPrefix8, _ := hex.DecodeString(evt.ID[0 : 8*2])
-		k := make([]byte, 1+8+4)
-		k[0] = indexIdPrefix
-		copy(k[1:], idPrefix8)
-		copy(k[1+8:], idx)
-		keys = append(keys, k)
-	}
-
-	{
-		// ~ by pubkey+date
-		pubkeyPrefix8, _ := hex.DecodeString(evt.PubKey[0 : 8*2])
-		k := make([]byte, 1+8+4+4)
-		k[0] = indexPubkeyPrefix
-		copy(k[1:], pubkeyPrefix8)
-		binary.BigEndian.PutUint32(k[1+8:], uint32(evt.CreatedAt))
-		copy(k[1+8+4:], idx)
-		keys = append(keys, k)
-	}
-
-	{
-		// ~ by kind+date
-		k := make([]byte, 1+2+4+4)
-		k[0] = indexKindPrefix
-		binary.BigEndian.PutUint16(k[1:], uint16(evt.Kind))
-		binary.BigEndian.PutUint32(k[1+2:], uint32(evt.CreatedAt))
-		copy(k[1+2+4:], idx)
-		keys = append(keys, k)
-	}
-
-	{
-		// ~ by pubkey+kind+date
-		pubkeyPrefix8, _ := hex.DecodeString(evt.PubKey[0 : 8*2])
-		k := make([]byte, 1+8+2+4+4)
-		k[0] = indexPubkeyKindPrefix
-		copy(k[1:], pubkeyPrefix8)
-		binary.BigEndian.PutUint16(k[1+8:], uint16(evt.Kind))
-		binary.BigEndian.PutUint32(k[1+8+2:], uint32(evt.CreatedAt))
-		copy(k[1+8+2+4:], idx)
-		keys = append(keys, k)
-	}
-
-	// ~ by tagvalue+date
-	customIndex := b.IndexLongerTag != nil
-	customSkip := b.SkipIndexingTag != nil
-
-	for i, tag := range evt.Tags {
-		if len(tag) < 2 || len(tag[0]) != 1 || len(tag[1]) == 0 || len(tag[1]) > 100 {
-			if !customIndex || !b.IndexLongerTag(evt, tag[0], tag[1]) {
-				// not indexable
-				continue
+func (b BadgerBackend) getIndexKeysForEvent(evt *nostr.Event, idx []byte) iter.Seq[[]byte] {
+	return func(yield func([]byte) bool) {
+		{
+			// ~ by id
+			idPrefix8, _ := hex.DecodeString(evt.ID[0 : 8*2])
+			k := make([]byte, 1+8+4)
+			k[0] = indexIdPrefix
+			copy(k[1:], idPrefix8)
+			copy(k[1+8:], idx)
+			if !yield(k) {
+				return
 			}
 		}
 
-		firstIndex := slices.IndexFunc(evt.Tags, func(t nostr.Tag) bool { return len(t) >= 2 && t[1] == tag[1] })
-		if firstIndex != i {
-			// duplicate
-			continue
+		{
+			// ~ by pubkey+date
+			pubkeyPrefix8, _ := hex.DecodeString(evt.PubKey[0 : 8*2])
+			k := make([]byte, 1+8+4+4)
+			k[0] = indexPubkeyPrefix
+			copy(k[1:], pubkeyPrefix8)
+			binary.BigEndian.PutUint32(k[1+8:], uint32(evt.CreatedAt))
+			copy(k[1+8+4:], idx)
+			if !yield(k) {
+				return
+			}
 		}
 
-		if customSkip && b.SkipIndexingTag(evt, tag[0], tag[1]) {
-			// purposefully skipped
-			continue
+		{
+			// ~ by kind+date
+			k := make([]byte, 1+2+4+4)
+			k[0] = indexKindPrefix
+			binary.BigEndian.PutUint16(k[1:], uint16(evt.Kind))
+			binary.BigEndian.PutUint32(k[1+2:], uint32(evt.CreatedAt))
+			copy(k[1+2+4:], idx)
+			if !yield(k) {
+				return
+			}
 		}
 
-		// get key prefix (with full length) and offset where to write the last parts
-		k, offset := getTagIndexPrefix(tag[1])
+		{
+			// ~ by pubkey+kind+date
+			pubkeyPrefix8, _ := hex.DecodeString(evt.PubKey[0 : 8*2])
+			k := make([]byte, 1+8+2+4+4)
+			k[0] = indexPubkeyKindPrefix
+			copy(k[1:], pubkeyPrefix8)
+			binary.BigEndian.PutUint16(k[1+8:], uint16(evt.Kind))
+			binary.BigEndian.PutUint32(k[1+8+2:], uint32(evt.CreatedAt))
+			copy(k[1+8+2+4:], idx)
+			if !yield(k) {
+				return
+			}
+		}
 
-		// write the last parts (created_at and idx)
-		binary.BigEndian.PutUint32(k[offset:], uint32(evt.CreatedAt))
-		copy(k[offset+4:], idx)
-		keys = append(keys, k)
+		// ~ by tagvalue+date
+		customIndex := b.IndexLongerTag != nil
+		customSkip := b.SkipIndexingTag != nil
+
+		for i, tag := range evt.Tags {
+			if len(tag) < 2 || len(tag[0]) != 1 || len(tag[1]) == 0 || len(tag[1]) > 100 {
+				if !customIndex || !b.IndexLongerTag(evt, tag[0], tag[1]) {
+					// not indexable
+					continue
+				}
+			}
+
+			firstIndex := slices.IndexFunc(evt.Tags, func(t nostr.Tag) bool { return len(t) >= 2 && t[1] == tag[1] })
+			if firstIndex != i {
+				// duplicate
+				continue
+			}
+
+			if customSkip && b.SkipIndexingTag(evt, tag[0], tag[1]) {
+				// purposefully skipped
+				continue
+			}
+
+			// get key prefix (with full length) and offset where to write the last parts
+			k, offset := getTagIndexPrefix(tag[1])
+
+			// write the last parts (created_at and idx)
+			binary.BigEndian.PutUint32(k[offset:], uint32(evt.CreatedAt))
+			copy(k[offset+4:], idx)
+			if !yield(k) {
+				return
+			}
+		}
+
+		{
+			// ~ by date only
+			k := make([]byte, 1+4+4)
+			k[0] = indexCreatedAtPrefix
+			binary.BigEndian.PutUint32(k[1:], uint32(evt.CreatedAt))
+			copy(k[1+4:], idx)
+			if !yield(k) {
+				return
+			}
+		}
 	}
-
-	{
-		// ~ by date only
-		k := make([]byte, 1+4+4)
-		k[0] = indexCreatedAtPrefix
-		binary.BigEndian.PutUint32(k[1:], uint32(evt.CreatedAt))
-		copy(k[1+4:], idx)
-		keys = append(keys, k)
-	}
-
-	return keys
 }
 
 func getAddrTagElements(tagValue string) (kind uint16, pkb []byte, d string) {

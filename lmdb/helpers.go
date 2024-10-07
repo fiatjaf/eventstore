@@ -3,6 +3,7 @@ package lmdb
 import (
 	"encoding/binary"
 	"encoding/hex"
+	"iter"
 	"strconv"
 	"strings"
 	"sync"
@@ -25,79 +26,90 @@ func (key key) free() {
 	indexKeyPool.Put(key.key)
 }
 
-func (b *LMDBBackend) getIndexKeysForEvent(evt *nostr.Event) []key {
-	keys := make([]key, 0, 18)
-
-	// indexes
-	{
-		// ~ by id
-		k := indexKeyPool.Get().([]byte)
-		hex.Decode(k[0:8], []byte(evt.ID[0:8*2]))
-		keys = append(keys, key{dbi: b.indexId, key: k[0:8]})
-	}
-
-	{
-		// ~ by pubkey+date
-		k := indexKeyPool.Get().([]byte)
-		hex.Decode(k[0:8], []byte(evt.PubKey[0:8*2]))
-		binary.BigEndian.PutUint32(k[8:8+4], uint32(evt.CreatedAt))
-		keys = append(keys, key{dbi: b.indexPubkey, key: k[0 : 8+4]})
-	}
-
-	{
-		// ~ by kind+date
-		k := indexKeyPool.Get().([]byte)
-		binary.BigEndian.PutUint16(k[0:2], uint16(evt.Kind))
-		binary.BigEndian.PutUint32(k[2:2+4], uint32(evt.CreatedAt))
-		keys = append(keys, key{dbi: b.indexKind, key: k[0 : 2+4]})
-	}
-
-	{
-		// ~ by pubkey+kind+date
-		k := indexKeyPool.Get().([]byte)
-		hex.Decode(k[0:8], []byte(evt.PubKey[0:8*2]))
-		binary.BigEndian.PutUint16(k[8:8+2], uint16(evt.Kind))
-		binary.BigEndian.PutUint32(k[8+2:8+2+4], uint32(evt.CreatedAt))
-		keys = append(keys, key{dbi: b.indexPubkeyKind, key: k[0 : 8+2+4]})
-	}
-
-	// ~ by tagvalue+date
-	// ~ by p-tag+kind+date
-	for i, tag := range evt.Tags {
-		if len(tag) < 2 || len(tag[0]) != 1 || len(tag[1]) == 0 || len(tag[1]) > 100 {
-			// not indexable
-			continue
-		}
-		firstIndex := slices.IndexFunc(evt.Tags, func(t nostr.Tag) bool { return len(t) >= 2 && t[1] == tag[1] })
-		if firstIndex != i {
-			// duplicate
-			continue
-		}
-
-		// get key prefix (with full length) and offset where to write the created_at
-		dbi, k, offset := b.getTagIndexPrefix(tag[1])
-		binary.BigEndian.PutUint32(k[offset:], uint32(evt.CreatedAt))
-		keys = append(keys, key{dbi: dbi, key: k})
-
-		// now the p-tag+kind+date
-		if dbi == b.indexTag32 && tag[0] == "p" {
+func (b *LMDBBackend) getIndexKeysForEvent(evt *nostr.Event) iter.Seq[key] {
+	return func(yield func(key) bool) {
+		{
+			// ~ by id
 			k := indexKeyPool.Get().([]byte)
-			hex.Decode(k[0:8], []byte(tag[1][0:8*2]))
+			hex.Decode(k[0:8], []byte(evt.ID[0:8*2]))
+			if !yield(key{dbi: b.indexId, key: k[0:8]}) {
+				return
+			}
+		}
+
+		{
+			// ~ by pubkey+date
+			k := indexKeyPool.Get().([]byte)
+			hex.Decode(k[0:8], []byte(evt.PubKey[0:8*2]))
+			binary.BigEndian.PutUint32(k[8:8+4], uint32(evt.CreatedAt))
+			if !yield(key{dbi: b.indexPubkey, key: k[0 : 8+4]}) {
+				return
+			}
+		}
+
+		{
+			// ~ by kind+date
+			k := indexKeyPool.Get().([]byte)
+			binary.BigEndian.PutUint16(k[0:2], uint16(evt.Kind))
+			binary.BigEndian.PutUint32(k[2:2+4], uint32(evt.CreatedAt))
+			if !yield(key{dbi: b.indexKind, key: k[0 : 2+4]}) {
+				return
+			}
+		}
+
+		{
+			// ~ by pubkey+kind+date
+			k := indexKeyPool.Get().([]byte)
+			hex.Decode(k[0:8], []byte(evt.PubKey[0:8*2]))
 			binary.BigEndian.PutUint16(k[8:8+2], uint16(evt.Kind))
 			binary.BigEndian.PutUint32(k[8+2:8+2+4], uint32(evt.CreatedAt))
-			dbi := b.indexPTagKind
-			keys = append(keys, key{dbi: dbi, key: k[0 : 8+2+4]})
+			if !yield(key{dbi: b.indexPubkeyKind, key: k[0 : 8+2+4]}) {
+				return
+			}
+		}
+
+		// ~ by tagvalue+date
+		// ~ by p-tag+kind+date
+		for i, tag := range evt.Tags {
+			if len(tag) < 2 || len(tag[0]) != 1 || len(tag[1]) == 0 || len(tag[1]) > 100 {
+				// not indexable
+				continue
+			}
+			firstIndex := slices.IndexFunc(evt.Tags, func(t nostr.Tag) bool { return len(t) >= 2 && t[1] == tag[1] })
+			if firstIndex != i {
+				// duplicate
+				continue
+			}
+
+			// get key prefix (with full length) and offset where to write the created_at
+			dbi, k, offset := b.getTagIndexPrefix(tag[1])
+			binary.BigEndian.PutUint32(k[offset:], uint32(evt.CreatedAt))
+			if !yield(key{dbi: dbi, key: k}) {
+				return
+			}
+
+			// now the p-tag+kind+date
+			if dbi == b.indexTag32 && tag[0] == "p" {
+				k := indexKeyPool.Get().([]byte)
+				hex.Decode(k[0:8], []byte(tag[1][0:8*2]))
+				binary.BigEndian.PutUint16(k[8:8+2], uint16(evt.Kind))
+				binary.BigEndian.PutUint32(k[8+2:8+2+4], uint32(evt.CreatedAt))
+				dbi := b.indexPTagKind
+				if !yield(key{dbi: dbi, key: k[0 : 8+2+4]}) {
+					return
+				}
+			}
+		}
+
+		{
+			// ~ by date only
+			k := indexKeyPool.Get().([]byte)
+			binary.BigEndian.PutUint32(k[0:4], uint32(evt.CreatedAt))
+			if !yield(key{dbi: b.indexCreatedAt, key: k[0:4]}) {
+				return
+			}
 		}
 	}
-
-	{
-		// ~ by date only
-		k := indexKeyPool.Get().([]byte)
-		binary.BigEndian.PutUint32(k[0:4], uint32(evt.CreatedAt))
-		keys = append(keys, key{dbi: b.indexCreatedAt, key: k[0:4]})
-	}
-
-	return keys
 }
 
 func (b *LMDBBackend) getTagIndexPrefix(tagValue string) (lmdb.DBI, []byte, int) {

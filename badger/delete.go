@@ -42,7 +42,7 @@ func (b *BadgerBackend) DeleteEvent(ctx context.Context, evt *nostr.Event) error
 		deletionHappened = true
 
 		// calculate all index keys we have for this event and delete them
-		for _, k := range b.getIndexKeysForEvent(evt, idx[1:]) {
+		for k := range b.getIndexKeysForEvent(evt, idx[1:]) {
 			if err := txn.Delete(k); err != nil {
 				return err
 			}
