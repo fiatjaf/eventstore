@@ -34,8 +34,6 @@ func (b BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch
 		return nil, err
 	}
 
-	slices.SortFunc(queries, func(a, b query) int { return slices.Compare(a.prefix, b.prefix) })
-
 	// max number of events we'll return
 	limit := b.MaxLimit / 4
 	if filter.Limit > 0 && filter.Limit <= b.MaxLimit {
