@@ -6,7 +6,6 @@ import (
 	"sync/atomic"
 
 	"github.com/dgraph-io/badger/v4"
-	"github.com/dgraph-io/badger/v4/options"
 	"github.com/fiatjaf/eventstore"
 	"github.com/nbd-wtf/go-nostr"
 )
@@ -27,8 +26,9 @@ const (
 var _ eventstore.Store = (*BadgerBackend)(nil)
 
 type BadgerBackend struct {
-	Path     string
-	MaxLimit int
+	Path                  string
+	MaxLimit              int
+	BadgerOptionsModifier func(badger.Options) badger.Options
 
 	// Experimental
 	SkipIndexingTag func(event *nostr.Event, tagName string, tagValue string) bool
@@ -41,9 +41,12 @@ type BadgerBackend struct {
 }
 
 func (b *BadgerBackend) Init() error {
-	db, err := badger.Open(badger.DefaultOptions(b.Path).
-		WithCompression(options.None),
-	)
+	opts := badger.DefaultOptions(b.Path)
+	if b.BadgerOptionsModifier != nil {
+		opts = b.BadgerOptionsModifier(opts)
+	}
+
+	db, err := badger.Open(opts)
 	if err != nil {
 		return err
 	}
