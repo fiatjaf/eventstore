@@ -117,7 +117,6 @@ func (b *BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (c
 					if !it.Valid() {
 						// fmt.Println("      reached end")
 						exhaust(q)
-						it.Next()
 						break
 					}
 
@@ -132,7 +131,6 @@ func (b *BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (c
 						if createdAt < since {
 							// fmt.Println("        reached since", createdAt, "<", since)
 							exhaust(q)
-							it.Next()
 							break
 						}
 					}
