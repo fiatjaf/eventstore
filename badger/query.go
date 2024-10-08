@@ -21,7 +21,7 @@ type iterEvent struct {
 
 var BatchFilled = errors.New("batch-filled")
 
-func (b BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (chan *nostr.Event, error) {
+func (b *BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (chan *nostr.Event, error) {
 	ch := make(chan *nostr.Event)
 
 	if filter.Search != "" {

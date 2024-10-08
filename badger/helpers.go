@@ -43,7 +43,7 @@ func getTagIndexPrefix(tagValue string) ([]byte, int) {
 	return k, offset
 }
 
-func (b BadgerBackend) getIndexKeysForEvent(evt *nostr.Event, idx []byte) iter.Seq[[]byte] {
+func (b *BadgerBackend) getIndexKeysForEvent(evt *nostr.Event, idx []byte) iter.Seq[[]byte] {
 	return func(yield func([]byte) bool) {
 		{
 			// ~ by id
