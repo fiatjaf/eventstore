@@ -41,14 +41,28 @@ func FuzzQuery(f *testing.F) {
 		}
 		db := &BadgerBackend{}
 		db.DB = bdb
-		db.seq, err = db.GetSequence([]byte("events"), 1000)
-		if err != nil {
+
+		if err := db.runMigrations(); err != nil {
 			t.Fatalf("error: %s", err)
 			return
 		}
 
-		if err := db.runMigrations(); err != nil {
-			t.Fatalf("error: %s", err)
+		if err := db.DB.View(func(txn *badger.Txn) error {
+			it := txn.NewIterator(badger.IteratorOptions{
+				Prefix:  []byte{0},
+				Reverse: true,
+			})
+			it.Seek([]byte{1})
+			if it.Valid() {
+				key := it.Item().Key()
+				idx := key[1:]
+				serial := binary.BigEndian.Uint32(idx)
+				db.serial.Store(serial)
+			}
+			it.Close()
+			return nil
+		}); err != nil {
+			t.Fatalf("failed to initialize serial: %s", err)
 			return
 		}
 

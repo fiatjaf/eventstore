@@ -3,6 +3,7 @@ package badger
 import (
 	"encoding/binary"
 	"fmt"
+	"sync/atomic"
 
 	"github.com/dgraph-io/badger/v4"
 	"github.com/dgraph-io/badger/v4/options"
@@ -35,7 +36,8 @@ type BadgerBackend struct {
 	IndexLongerTag func(event *nostr.Event, tagName string, tagValue string) bool
 
 	*badger.DB
-	seq *badger.Sequence
+
+	serial atomic.Uint32
 }
 
 func (b *BadgerBackend) Init() error {
@@ -46,10 +48,6 @@ func (b *BadgerBackend) Init() error {
 		return err
 	}
 	b.DB = db
-	b.seq, err = db.GetSequence([]byte("events"), 1000)
-	if err != nil {
-		return err
-	}
 
 	if err := b.runMigrations(); err != nil {
 		return fmt.Errorf("error running migrations: %w", err)
@@ -59,18 +57,35 @@ func (b *BadgerBackend) Init() error {
 		b.MaxLimit = 500
 	}
 
+	if err := b.DB.View(func(txn *badger.Txn) error {
+		it := txn.NewIterator(badger.IteratorOptions{
+			Prefix:  []byte{0},
+			Reverse: true,
+		})
+		it.Seek([]byte{1})
+		if it.Valid() {
+			key := it.Item().Key()
+			idx := key[1:]
+			serial := binary.BigEndian.Uint32(idx)
+			b.serial.Store(serial)
+		}
+		it.Close()
+		return nil
+	}); err != nil {
+		return fmt.Errorf("error initializing serial: %w", err)
+	}
+
 	return nil
 }
 
-func (b BadgerBackend) Close() {
+func (b *BadgerBackend) Close() {
 	b.DB.Close()
-	b.seq.Release()
 }
 
-func (b BadgerBackend) Serial() []byte {
-	v, _ := b.seq.Next()
+func (b *BadgerBackend) Serial() []byte {
+	next := b.serial.Add(1)
 	vb := make([]byte, 5)
 	vb[0] = rawEventStorePrefix
-	binary.BigEndian.PutUint32(vb[1:], uint32(v))
+	binary.BigEndian.PutUint32(vb[1:], next)
 	return vb
 }
