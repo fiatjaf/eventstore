@@ -14,69 +14,52 @@ type RelayWrapper struct {
 var _ nostr.RelayStore = (*RelayWrapper)(nil)
 
 func (w RelayWrapper) Publish(ctx context.Context, evt nostr.Event) error {
+	if nostr.IsEphemeralKind(evt.Kind) {
+		// do not store ephemeral events
+		return nil
+	}
+
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	if 20000 <= evt.Kind && evt.Kind < 30000 {
-		// do not store ephemeral events
-		return nil
-	} else if evt.Kind == 0 || evt.Kind == 3 || (10000 <= evt.Kind && evt.Kind < 20000) {
-		// replaceable event, delete before storing
-		ch, err := w.Store.QueryEvents(ctx, nostr.Filter{Authors: []string{evt.PubKey}, Kinds: []int{evt.Kind}})
-		if err != nil {
-			return fmt.Errorf("failed to query before replacing: %w", err)
-		}
-		isNewer := true
-		for previous := range ch {
-			if previous == nil {
-				continue
-			}
-			if isOlder(previous, &evt) {
-				if err := w.Store.DeleteEvent(ctx, previous); err != nil {
-					return fmt.Errorf("failed to delete event for replacing: %w", err)
-				}
-			} else {
-				// already, newer event is stored.
-				isNewer = false
-				break
-			}
-		}
-		if !isNewer {
-			return nil
-		}
-	} else if 30000 <= evt.Kind && evt.Kind < 40000 {
-		// parameterized replaceable event, delete before storing
-		d := evt.Tags.GetFirst([]string{"d", ""})
-		if d == nil {
-			return fmt.Errorf("failed to add event missing d tag for parameterized replacing")
-		}
-		ch, err := w.Store.QueryEvents(ctx, nostr.Filter{Authors: []string{evt.PubKey}, Kinds: []int{evt.Kind}, Tags: nostr.TagMap{"d": []string{d.Value()}}})
-		if err != nil {
-			return fmt.Errorf("failed to query before parameterized replacing: %w", err)
-		}
-		isNewer := true
-		for previous := range ch {
-			if previous == nil {
-				continue
-			}
-
-			if !isOlder(previous, &evt) {
-				if err := w.Store.DeleteEvent(ctx, previous); err != nil {
-					return fmt.Errorf("failed to delete event for parameterized replacing: %w", err)
-				}
-			} else {
-				// already, newer event is stored.
-				isNewer = false
-				break
-			}
-		}
-		if !isNewer {
-			return nil
+	if nostr.IsRegularKind(evt.Kind) {
+		// regular events are just saved directly
+		if err := w.SaveEvent(ctx, &evt); err != nil && err != ErrDupEvent {
+			return fmt.Errorf("failed to save: %w", err)
 		}
 	}
 
-	if err := w.SaveEvent(ctx, &evt); err != nil && err != ErrDupEvent {
-		return fmt.Errorf("failed to save: %w", err)
+	// from now on we know they are replaceable or addressable
+	filter := nostr.Filter{Limit: 1, Kinds: []int{evt.Kind}, Authors: []string{evt.PubKey}}
+	if nostr.IsAddressableKind(evt.Kind) {
+		// when addressable, add the "d" tag to the filter
+		filter.Tags = nostr.TagMap{"d": []string{evt.Tags.GetD()}}
+	}
+
+	// now we fetch the event, whatever it is, delete it and then save the new
+	ch, err := w.Store.QueryEvents(ctx, filter)
+	if err != nil {
+		return fmt.Errorf("failed to query before replacing: %w", err)
+	}
+
+	shouldStore := true
+	for previous := range ch {
+		if previous == nil {
+			continue
+		}
+		if isOlder(previous, &evt) {
+			if err := w.Store.DeleteEvent(ctx, previous); err != nil {
+				return fmt.Errorf("failed to delete event for replacing: %w", err)
+			}
+		} else {
+			// already, newer event is stored.
+			shouldStore = false
+		}
+	}
+	if shouldStore {
+		if err := w.SaveEvent(ctx, &evt); err != nil && err != ErrDupEvent {
+			return fmt.Errorf("failed to save: %w", err)
+		}
 	}
 
 	return nil

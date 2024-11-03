@@ -17,9 +17,10 @@ const (
 var _ eventstore.Store = (*LMDBBackend)(nil)
 
 type LMDBBackend struct {
-	Path     string
-	MaxLimit int
-	MapSize  int64
+	Path               string
+	MaxLimit           int
+	MaxLimitNegentropy int
+	MapSize            int64
 
 	lmdbEnv *lmdb.Env
 
@@ -39,8 +40,13 @@ type LMDBBackend struct {
 }
 
 func (b *LMDBBackend) Init() error {
-	if b.MaxLimit == 0 {
+	if b.MaxLimit != 0 {
+		b.MaxLimitNegentropy = b.MaxLimit
+	} else {
 		b.MaxLimit = 500
+		if b.MaxLimitNegentropy == 0 {
+			b.MaxLimitNegentropy = 16777216
+		}
 	}
 
 	env, err := lmdb.NewEnv()

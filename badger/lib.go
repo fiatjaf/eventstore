@@ -28,6 +28,7 @@ var _ eventstore.Store = (*BadgerBackend)(nil)
 type BadgerBackend struct {
 	Path                  string
 	MaxLimit              int
+	MaxLimitNegentropy    int
 	BadgerOptionsModifier func(badger.Options) badger.Options
 
 	// Experimental
@@ -56,8 +57,13 @@ func (b *BadgerBackend) Init() error {
 		return fmt.Errorf("error running migrations: %w", err)
 	}
 
-	if b.MaxLimit == 0 {
+	if b.MaxLimit != 0 {
+		b.MaxLimitNegentropy = b.MaxLimit
+	} else {
 		b.MaxLimit = 500
+		if b.MaxLimitNegentropy == 0 {
+			b.MaxLimitNegentropy = 16777216
+		}
 	}
 
 	if err := b.DB.View(func(txn *badger.Txn) error {

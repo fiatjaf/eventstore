@@ -1,6 +1,8 @@
 module github.com/fiatjaf/eventstore
 
-go 1.23.0
+go 1.23.1
+
+toolchain go1.23.2
 
 require (
 	fiatjaf.com/lib v0.2.0
@@ -16,7 +18,7 @@ require (
 	github.com/lib/pq v1.10.9
 	github.com/mailru/easyjson v0.7.7
 	github.com/mattn/go-sqlite3 v1.14.18
-	github.com/nbd-wtf/go-nostr v0.38.1
+	github.com/nbd-wtf/go-nostr v0.42.0
 	github.com/opensearch-project/opensearch-go/v4 v4.0.0
 	github.com/stretchr/testify v1.9.0
 	golang.org/x/exp v0.0.0-20240909161429-701f63a606c0

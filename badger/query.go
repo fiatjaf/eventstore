@@ -9,6 +9,7 @@ import (
 	"log"
 
 	"github.com/dgraph-io/badger/v4"
+	"github.com/fiatjaf/eventstore"
 	bin "github.com/fiatjaf/eventstore/internal/binary"
 	"github.com/nbd-wtf/go-nostr"
 	"golang.org/x/exp/slices"
@@ -35,9 +36,22 @@ func (b *BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (c
 	}
 
 	// max number of events we'll return
-	limit := b.MaxLimit / 4
-	if filter.Limit > 0 && filter.Limit <= b.MaxLimit {
+	maxLimit := b.MaxLimit
+	var limit int
+	if eventstore.IsNegentropySession(ctx) {
+		maxLimit = b.MaxLimitNegentropy
+		limit = maxLimit
+	} else {
+		limit = maxLimit / 4
+	}
+	if filter.Limit > 0 && filter.Limit <= maxLimit {
 		limit = filter.Limit
+	}
+	if tlimit := nostr.GetTheoreticalLimit(filter); tlimit == 0 {
+		close(ch)
+		return ch, nil
+	} else if tlimit > 0 {
+		limit = tlimit
 	}
 
 	// fmt.Println("limit", limit)

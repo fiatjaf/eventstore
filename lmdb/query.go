@@ -10,6 +10,7 @@ import (
 	"slices"
 
 	"github.com/PowerDNS/lmdb-go/lmdb"
+	"github.com/fiatjaf/eventstore"
 	bin "github.com/fiatjaf/eventstore/internal/binary"
 	"github.com/nbd-wtf/go-nostr"
 )
@@ -22,20 +23,33 @@ type queryEvent struct {
 func (b *LMDBBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (chan *nostr.Event, error) {
 	ch := make(chan *nostr.Event)
 
+	if filter.Search != "" {
+		close(ch)
+		return ch, nil
+	}
+
 	queries, extraAuthors, extraKinds, extraTagKey, extraTagValues, since, err := b.prepareQueries(filter)
 	if err != nil {
 		return nil, err
 	}
 
 	// max number of events we'll return
-	limit := b.MaxLimit / 4
-	if filter.Limit > 0 && filter.Limit <= b.MaxLimit {
+	maxLimit := b.MaxLimit
+	var limit int
+	if eventstore.IsNegentropySession(ctx) {
+		maxLimit = b.MaxLimitNegentropy
+		limit = maxLimit
+	} else {
+		limit = maxLimit / 4
+	}
+	if filter.Limit > 0 && filter.Limit <= maxLimit {
 		limit = filter.Limit
 	}
-
-	if filter.Search != "" {
+	if tlimit := nostr.GetTheoreticalLimit(filter); tlimit == 0 {
 		close(ch)
 		return ch, nil
+	} else if tlimit > 0 {
+		limit = tlimit
 	}
 
 	go func() {
