@@ -10,7 +10,7 @@ type Event struct {
 	EventID   string                  `edgedb:"eventId"`
 	Pubkey    string                  `edgedb:"pubkey"`
 	CreatedAt edgedb.OptionalDateTime `edgedb:"createdAt"`
-	Kind      int                     `edgedb:"kind"`
+	Kind      int64                   `edgedb:"kind"`
 	Tags      [][]string              `edgedb:"tags"`
 	Content   string                  `edgedb:"content"`
 	Sig       string                  `edgedb:"sig"`
@@ -26,7 +26,7 @@ func NostrEventToEdgeDBEvent(event *nostr.Event) Event {
 		EventID:   event.ID,
 		Pubkey:    event.PubKey,
 		CreatedAt: edgedb.NewOptionalDateTime(event.CreatedAt.Time()),
-		Kind:      event.Kind,
+		Kind:      int64(event.Kind),
 		Tags:      tags,
 		Content:   event.Content,
 		Sig:       event.Sig,
@@ -44,7 +44,7 @@ func EdgeDBEventToNostrEvent(event Event) *nostr.Event {
 		ID:        event.EventID,
 		PubKey:    event.Pubkey,
 		CreatedAt: nostr.Timestamp(createdAt.Unix()),
-		Kind:      event.Kind,
+		Kind:      int(event.Kind),
 		Tags:      tags,
 		Content:   event.Content,
 		Sig:       event.Sig,
