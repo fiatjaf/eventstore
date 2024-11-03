@@ -13,16 +13,20 @@ type Event struct {
 	Pubkey    string                  `edgedb:"pubkey"`
 	CreatedAt edgedb.OptionalDateTime `edgedb:"createdAt"`
 	Kind      int64                   `edgedb:"kind"`
-	Tags      []byte                  `edgedb:"tags"`
+	Tags      [][]byte                `edgedb:"tags"`
 	Content   string                  `edgedb:"content"`
 	Sig       string                  `edgedb:"sig"`
 }
 
 // NostrEventToEdgeDBEvent converts the event from the nostr.Event datatype to edgedb.Event
 func NostrEventToEdgeDBEvent(event *nostr.Event) (Event, error) {
-	tagsBytes, err := json.Marshal(event.Tags)
-	if err != nil {
-		return Event{}, err
+	var tagsBytes [][]byte
+	for _, e := range event.Tags {
+		tagBytes, err := json.Marshal(e)
+		if err != nil {
+			return Event{}, err
+		}
+		tagsBytes = append(tagsBytes, tagBytes)
 	}
 	return Event{
 		EventID:   event.ID,
@@ -38,8 +42,12 @@ func NostrEventToEdgeDBEvent(event *nostr.Event) (Event, error) {
 // EdgeDBEventToNostrEvent converts the event from the edgedb.Event datatype to nostr.Event
 func EdgeDBEventToNostrEvent(event Event) (*nostr.Event, error) {
 	var tags nostr.Tags
-	if err := json.Unmarshal(event.Tags, &tags); err != nil {
-		return nil, err
+	for _, tagBytes := range event.Tags {
+		var tag nostr.Tag
+		if err := json.Unmarshal(tagBytes, &tag); err != nil {
+			return nil, err
+		}
+		tags = append(tags, tag)
 	}
 	createdAt, _ := event.CreatedAt.Get()
 	return &nostr.Event{
