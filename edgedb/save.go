@@ -13,7 +13,7 @@ func (b *EdgeDBBackend) SaveEvent(ctx context.Context, event *nostr.Event) error
 		"eventId":   event.ID,
 		"pubkey":    event.PubKey,
 		"createdAt": e.CreatedAt,
-		"kind":      event.Kind,
+		"kind":      e.Kind,
 		"tags":      event.Tags, // may need to JSON stringify
 		"content":   event.Content,
 		"sig":       event.Sig,
