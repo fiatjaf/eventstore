@@ -1,6 +1,8 @@
 package edgedb
 
 import (
+	"encoding/json"
+
 	"github.com/edgedb/edgedb-go"
 	"github.com/nbd-wtf/go-nostr"
 )
@@ -11,33 +13,33 @@ type Event struct {
 	Pubkey    string                  `edgedb:"pubkey"`
 	CreatedAt edgedb.OptionalDateTime `edgedb:"createdAt"`
 	Kind      int64                   `edgedb:"kind"`
-	Tags      [][]string              `edgedb:"tags"`
+	Tags      []byte                  `edgedb:"tags"`
 	Content   string                  `edgedb:"content"`
 	Sig       string                  `edgedb:"sig"`
 }
 
 // NostrEventToEdgeDBEvent converts the event from the nostr.Event datatype to edgedb.Event
-func NostrEventToEdgeDBEvent(event *nostr.Event) Event {
-	tags := [][]string{}
-	for _, tag := range event.Tags {
-		tags = append(tags, tag)
+func NostrEventToEdgeDBEvent(event *nostr.Event) (Event, error) {
+	tagsBytes, err := json.Marshal(event.Tags)
+	if err != nil {
+		return Event{}, err
 	}
 	return Event{
 		EventID:   event.ID,
 		Pubkey:    event.PubKey,
 		CreatedAt: edgedb.NewOptionalDateTime(event.CreatedAt.Time()),
 		Kind:      int64(event.Kind),
-		Tags:      tags,
+		Tags:      tagsBytes,
 		Content:   event.Content,
 		Sig:       event.Sig,
-	}
+	}, nil
 }
 
 // EdgeDBEventToNostrEvent converts the event from the edgedb.Event datatype to nostr.Event
-func EdgeDBEventToNostrEvent(event Event) *nostr.Event {
+func EdgeDBEventToNostrEvent(event Event) (*nostr.Event, error) {
 	var tags nostr.Tags
-	for _, tag := range event.Tags {
-		tags = append(tags, nostr.Tag(tag))
+	if err := json.Unmarshal(event.Tags, &tags); err != nil {
+		return nil, err
 	}
 	createdAt, _ := event.CreatedAt.Get()
 	return &nostr.Event{
@@ -48,5 +50,5 @@ func EdgeDBEventToNostrEvent(event Event) *nostr.Event {
 		Tags:      tags,
 		Content:   event.Content,
 		Sig:       event.Sig,
-	}
+	}, nil
 }

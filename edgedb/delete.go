@@ -12,6 +12,9 @@ func (b *EdgeDBBackend) DeleteEvent(ctx context.Context, event *nostr.Event) err
 	args := map[string]interface{}{
 		"eventId": event.ID,
 	}
-	e := NostrEventToEdgeDBEvent(event)
+	e, err := NostrEventToEdgeDBEvent(event)
+	if err != nil {
+		return err
+	}
 	return b.Client.QuerySingle(ctx, query, &e, args)
 }

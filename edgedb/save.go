@@ -7,14 +7,17 @@ import (
 )
 
 func (b *EdgeDBBackend) SaveEvent(ctx context.Context, event *nostr.Event) error {
-	e := NostrEventToEdgeDBEvent(event)
+	e, err := NostrEventToEdgeDBEvent(event)
+	if err != nil {
+		return err
+	}
 	query := "INSERT events::Event { eventId := <str>$eventId, pubkey := <str>$pubkey, createdAt := <datetime>$createdAt, kind := <int64>$kind, tags := <array<json>>$tags, content := <str>$content, sig := <str>$sig }"
 	args := map[string]interface{}{
 		"eventId":   event.ID,
 		"pubkey":    event.PubKey,
 		"createdAt": e.CreatedAt,
 		"kind":      e.Kind,
-		"tags":      event.Tags, // may need to JSON stringify
+		"tags":      e.Tags,
 		"content":   event.Content,
 		"sig":       event.Sig,
 	}

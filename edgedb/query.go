@@ -31,8 +31,12 @@ func (b *EdgeDBBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (c
 	go func() {
 		defer close(ch)
 		for _, event := range events {
+			e, err := EdgeDBEventToNostrEvent(event)
+			if err != nil {
+				panic(fmt.Errorf("failed to fetch events using query %s: %w", query, err))
+			}
 			select {
-			case ch <- EdgeDBEventToNostrEvent(event):
+			case ch <- e:
 			case <-ctx.Done():
 				return
 			}
