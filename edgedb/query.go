@@ -49,9 +49,9 @@ func (b *EdgeDBBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (c
 func (b *EdgeDBBackend) queryEventsEdgeql(filter nostr.Filter, doCount bool) (string, map[string]interface{}, error) {
 	var (
 		conditions []string
-		args       map[string]interface{}
 		query      string
 	)
+	args := map[string]interface{}{}
 	if len(filter.IDs) > 0 {
 		if len(filter.IDs) > b.QueryIDsLimit {
 			return query, args, ErrTooManyIDs
@@ -72,8 +72,12 @@ func (b *EdgeDBBackend) queryEventsEdgeql(filter nostr.Filter, doCount bool) (st
 		if len(filter.Kinds) > b.QueryKindsLimit {
 			return query, args, ErrTooManyKinds
 		}
-		conditions = append(conditions, `events::Event.kind IN <array<str>>$kinds`)
-		args["kinds"] = filter.Kinds
+		conditions = append(conditions, `events::Event.kind IN <array<int64>>$kinds`)
+		int64Kinds := []int64{}
+		for _, k := range filter.Kinds {
+			int64Kinds = append(int64Kinds, int64(k))
+		}
+		args["kinds"] = int64Kinds
 	}
 	/*
 		SELECT events::Event {*} FILTER (
