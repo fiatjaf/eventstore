@@ -12,7 +12,7 @@ func (b *EdgeDBBackend) SaveEvent(ctx context.Context, event *nostr.Event) error
 	args := map[string]interface{}{
 		"eventId":   event.ID,
 		"pubkey":    event.PubKey,
-		"createdAt": event.CreatedAt,
+		"createdAt": e.CreatedAt,
 		"kind":      event.Kind,
 		"tags":      event.Tags, // may need to JSON stringify
 		"content":   event.Content,
