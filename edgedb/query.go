@@ -139,7 +139,7 @@ func (b *EdgeDBBackend) queryEventsEdgeql(filter nostr.Filter, doCount bool) (st
 	query += " LIMIT <int64>$limit"
 	args["limit"] = filter.Limit
 	if filter.Limit < 1 || filter.Limit > b.QueryLimit {
-		args["limit"] = b.QueryLimit
+		args["limit"] = int64(b.QueryLimit)
 	}
 	return query, args, nil
 }
