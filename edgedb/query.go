@@ -56,7 +56,7 @@ func (b *EdgeDBBackend) queryEventsEdgeql(filter nostr.Filter, doCount bool) (st
 		if len(filter.IDs) > b.QueryIDsLimit {
 			return query, args, ErrTooManyIDs
 		}
-		conditions = append(conditions, `events::Event.eventId IN <array<str>>$ids`)
+		conditions = append(conditions, `events::Event.eventId IN array_unpack(<array<str>>$ids)`)
 		args["ids"] = filter.IDs
 	}
 
@@ -64,7 +64,7 @@ func (b *EdgeDBBackend) queryEventsEdgeql(filter nostr.Filter, doCount bool) (st
 		if len(filter.Authors) > b.QueryAuthorsLimit {
 			return query, args, ErrTooManyAuthors
 		}
-		conditions = append(conditions, `events::Event.pubkey IN <array<str>>$authors`)
+		conditions = append(conditions, `events::Event.pubkey IN array_unpack(<array<str>>$authors)`)
 		args["authors"] = filter.Authors
 	}
 
@@ -72,7 +72,7 @@ func (b *EdgeDBBackend) queryEventsEdgeql(filter nostr.Filter, doCount bool) (st
 		if len(filter.Kinds) > b.QueryKindsLimit {
 			return query, args, ErrTooManyKinds
 		}
-		conditions = append(conditions, `events::Event.kind IN <array<int64>>$kinds`)
+		conditions = append(conditions, `events::Event.kind IN array_unpack(<array<int64>>$kinds)`)
 		int64Kinds := []int64{}
 		for _, k := range filter.Kinds {
 			int64Kinds = append(int64Kinds, int64(k))
