@@ -48,7 +48,7 @@ func (b *EdgeDBBackend) Init() error {
 	if err != nil {
 		return err
 	}
-	// perform initial migration
+	// perform initial migration. NOTE: we check for SchemaError since that is the type of error returned when there's a duplicate schema. Kind of dumb
 	var dbErr edgedb.Error
 	if err := dbConn.Execute(context.Background(), initialMigration); err != nil && errors.As(err, &dbErr) && !dbErr.Category(edgedb.SchemaError) {
 		return err
