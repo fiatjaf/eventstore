@@ -10,8 +10,8 @@ import (
 
 func (b *EdgeDBBackend) SaveEvent(ctx context.Context, event *nostr.Event) error {
 	var tagsBytes [][]byte
-	for _, e := range event.Tags {
-		tagBytes, err := json.Marshal(e)
+	for _, t := range event.Tags {
+		tagBytes, err := json.Marshal(t)
 		if err != nil {
 			return err
 		}

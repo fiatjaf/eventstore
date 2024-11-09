@@ -83,11 +83,11 @@ func (b *EdgeDBBackend) queryEventsEdgeql(filter nostr.Filter, doCount bool) (st
 		SELECT events::Event {*} FILTER (
 			with ts := (
 				for tag in array_unpack(.tags) UNION (
-					SELECT tag[1] FILTER tag[0] = <json>'t'
+					SELECT tag[1] if count(json_array_unpack(tag)) > 1 else <json>'' FILTER tag[0] = <json>'x'
 				)
 			)
-			SELECT EXISTS (SELECT ts INTERSECT {<json>'gm'})
-		)
+			SELECT EXISTS (SELECT ts INTERSECT {<json>'y', <json>'z'})
+		);
 	*/
 	for letter, values := range filter.Tags {
 		if len(values) == 0 {
@@ -106,7 +106,7 @@ func (b *EdgeDBBackend) queryEventsEdgeql(filter nostr.Filter, doCount bool) (st
 		conditions = append(conditions, fmt.Sprintf(`(
 			with ts := (
 				for tag in array_unpack(events::Event.tags) UNION (
-					SELECT tag[1] FILTER tag[0] = <json>'%s'
+					SELECT tag[1] if count(json_array_unpack(tag)) > 1 else <json>'' FILTER tag[0] = <json>'%s'
 				)
 			)
 			SELECT EXISTS (SELECT ts INTERSECT {%s})
