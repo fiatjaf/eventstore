@@ -13,18 +13,11 @@ import (
 type query struct {
 	i             int
 	dbi           lmdb.DBI
-	prefix        []byte // this is pooled from indexKeyPool and we should return it
+	prefix        []byte
 	results       chan *nostr.Event
 	keySize       int
 	timestampSize int
 	startingPoint []byte
-}
-
-func (q query) free() {
-	if len(q.prefix) > 40 {
-		indexKeyPool.Put(q.prefix)
-		indexKeyPool.Put(q.startingPoint)
-	}
 }
 
 func (b *LMDBBackend) prepareQueries(filter nostr.Filter) (
@@ -49,7 +42,7 @@ func (b *LMDBBackend) prepareQueries(filter nostr.Filter) (
 			}
 		}
 		for i, q := range queries {
-			sp := indexKeyPool.Get().([]byte)
+			sp := make([]byte, len(q.prefix))
 			sp = sp[0:len(q.prefix)]
 			copy(sp, q.prefix)
 			queries[i].startingPoint = binary.BigEndian.AppendUint32(sp, uint32(until))
@@ -64,7 +57,7 @@ func (b *LMDBBackend) prepareQueries(filter nostr.Filter) (
 			if len(idHex) != 64 {
 				return nil, nil, nil, "", nil, 0, fmt.Errorf("invalid id '%s'", idHex)
 			}
-			prefix := indexKeyPool.Get().([]byte)
+			prefix := make([]byte, 8)
 			if _, err := hex.Decode(prefix[0:8], []byte(idHex[0:8*2])); err != nil {
 				return nil, nil, nil, "", nil, 0, fmt.Errorf("invalid id '%s'", idHex)
 			}
@@ -101,7 +94,7 @@ func (b *LMDBBackend) prepareQueries(filter nostr.Filter) (
 					}
 
 					for _, kind := range filter.Kinds {
-						k := indexKeyPool.Get().([]byte)
+						k := make([]byte, 8+2)
 						if _, err := hex.Decode(k[0:8], []byte(value[0:8*2])); err != nil {
 							return nil, nil, nil, "", nil, 0, fmt.Errorf("invalid 'p' tag '%s'", value)
 						}
@@ -118,7 +111,7 @@ func (b *LMDBBackend) prepareQueries(filter nostr.Filter) (
 						return nil, nil, nil, "", nil, 0, fmt.Errorf("invalid 'p' tag '%s'", value)
 					}
 
-					k := indexKeyPool.Get().([]byte)
+					k := make([]byte, 8)
 					if _, err := hex.Decode(k[0:8], []byte(value[0:8*2])); err != nil {
 						return nil, nil, nil, "", nil, 0, fmt.Errorf("invalid 'p' tag '%s'", value)
 					}
@@ -172,7 +165,7 @@ pubkeyMatching:
 				if len(pubkeyHex) != 64 {
 					return nil, nil, nil, "", nil, 0, fmt.Errorf("invalid author '%s'", pubkeyHex)
 				}
-				prefix := indexKeyPool.Get().([]byte)
+				prefix := make([]byte, 8)
 				if _, err := hex.Decode(prefix[0:8], []byte(pubkeyHex[0:8*2])); err != nil {
 					return nil, nil, nil, "", nil, 0, fmt.Errorf("invalid author '%s'", pubkeyHex)
 				}
@@ -187,7 +180,7 @@ pubkeyMatching:
 					if len(pubkeyHex) != 64 {
 						return nil, nil, nil, "", nil, 0, fmt.Errorf("invalid author '%s'", pubkeyHex)
 					}
-					prefix := indexKeyPool.Get().([]byte)
+					prefix := make([]byte, 8+2)
 					if _, err := hex.Decode(prefix[0:8], []byte(pubkeyHex[0:8*2])); err != nil {
 						return nil, nil, nil, "", nil, 0, fmt.Errorf("invalid author '%s'", pubkeyHex)
 					}
@@ -207,7 +200,7 @@ pubkeyMatching:
 		// will use a kind index
 		queries = make([]query, len(filter.Kinds))
 		for i, kind := range filter.Kinds {
-			prefix := indexKeyPool.Get().([]byte)
+			prefix := make([]byte, 2)
 			binary.BigEndian.PutUint16(prefix[0:2], uint16(kind))
 			queries[i] = query{i: i, dbi: b.indexKind, prefix: prefix[0:2], keySize: 2 + 4, timestampSize: 4}
 		}

@@ -6,15 +6,39 @@ import (
 	"iter"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/PowerDNS/lmdb-go/lmdb"
 	"github.com/nbd-wtf/go-nostr"
 	"golang.org/x/exp/slices"
 )
 
-var indexKeyPool = sync.Pool{
-	New: func() any { return make([]byte, 2+8+4+30) },
+// this iterator always goes backwards
+type iterator struct {
+	cursor *lmdb.Cursor
+	key    []byte
+	valIdx []byte
+	err    error
+}
+
+func (it iterator) seek(key []byte) {
+	if _, _, errsr := it.cursor.Get(key, nil, lmdb.SetRange); errsr != nil {
+		if operr, ok := errsr.(*lmdb.OpError); !ok || operr.Errno != lmdb.NotFound {
+			// in this case it's really an error
+			panic(operr)
+		} else {
+			// we're at the end and we just want notes before this,
+			// so we just need to set the cursor the last key, this is not a real error
+			it.key, it.valIdx, it.err = it.cursor.Get(nil, nil, lmdb.Last)
+		}
+	} else {
+		// move one back as the first step
+		it.key, it.valIdx, it.err = it.cursor.Get(nil, nil, lmdb.Prev)
+	}
+}
+
+func (it iterator) next() {
+	// move one back (we'll look into k and v and err in the next iteration)
+	it.key, it.valIdx, it.err = it.cursor.Get(nil, nil, lmdb.Prev)
 }
 
 type key struct {
@@ -22,15 +46,11 @@ type key struct {
 	key []byte
 }
 
-func (key key) free() {
-	indexKeyPool.Put(key.key)
-}
-
 func (b *LMDBBackend) getIndexKeysForEvent(evt *nostr.Event) iter.Seq[key] {
 	return func(yield func(key) bool) {
 		{
 			// ~ by id
-			k := indexKeyPool.Get().([]byte)
+			k := make([]byte, 8)
 			hex.Decode(k[0:8], []byte(evt.ID[0:8*2]))
 			if !yield(key{dbi: b.indexId, key: k[0:8]}) {
 				return
@@ -39,7 +59,7 @@ func (b *LMDBBackend) getIndexKeysForEvent(evt *nostr.Event) iter.Seq[key] {
 
 		{
 			// ~ by pubkey+date
-			k := indexKeyPool.Get().([]byte)
+			k := make([]byte, 8+4)
 			hex.Decode(k[0:8], []byte(evt.PubKey[0:8*2]))
 			binary.BigEndian.PutUint32(k[8:8+4], uint32(evt.CreatedAt))
 			if !yield(key{dbi: b.indexPubkey, key: k[0 : 8+4]}) {
@@ -49,7 +69,7 @@ func (b *LMDBBackend) getIndexKeysForEvent(evt *nostr.Event) iter.Seq[key] {
 
 		{
 			// ~ by kind+date
-			k := indexKeyPool.Get().([]byte)
+			k := make([]byte, 2+4)
 			binary.BigEndian.PutUint16(k[0:2], uint16(evt.Kind))
 			binary.BigEndian.PutUint32(k[2:2+4], uint32(evt.CreatedAt))
 			if !yield(key{dbi: b.indexKind, key: k[0 : 2+4]}) {
@@ -59,7 +79,7 @@ func (b *LMDBBackend) getIndexKeysForEvent(evt *nostr.Event) iter.Seq[key] {
 
 		{
 			// ~ by pubkey+kind+date
-			k := indexKeyPool.Get().([]byte)
+			k := make([]byte, 8+2+4)
 			hex.Decode(k[0:8], []byte(evt.PubKey[0:8*2]))
 			binary.BigEndian.PutUint16(k[8:8+2], uint16(evt.Kind))
 			binary.BigEndian.PutUint32(k[8+2:8+2+4], uint32(evt.CreatedAt))
@@ -90,7 +110,7 @@ func (b *LMDBBackend) getIndexKeysForEvent(evt *nostr.Event) iter.Seq[key] {
 
 			// now the p-tag+kind+date
 			if dbi == b.indexTag32 && tag[0] == "p" {
-				k := indexKeyPool.Get().([]byte)
+				k := make([]byte, 8+2+4)
 				hex.Decode(k[0:8], []byte(tag[1][0:8*2]))
 				binary.BigEndian.PutUint16(k[8:8+2], uint16(evt.Kind))
 				binary.BigEndian.PutUint32(k[8+2:8+2+4], uint32(evt.CreatedAt))
@@ -103,7 +123,7 @@ func (b *LMDBBackend) getIndexKeysForEvent(evt *nostr.Event) iter.Seq[key] {
 
 		{
 			// ~ by date only
-			k := indexKeyPool.Get().([]byte)
+			k := make([]byte, 4)
 			binary.BigEndian.PutUint32(k[0:4], uint32(evt.CreatedAt))
 			if !yield(key{dbi: b.indexCreatedAt, key: k[0:4]}) {
 				return
@@ -117,21 +137,21 @@ func (b *LMDBBackend) getTagIndexPrefix(tagValue string) (lmdb.DBI, []byte, int)
 	var offset int // the offset -- i.e. where the prefix ends and the created_at and idx would start
 	var dbi lmdb.DBI
 
-	k = indexKeyPool.Get().([]byte)
-
 	// if it's 32 bytes as hex, save it as bytes
 	if len(tagValue) == 64 {
 		// but we actually only use the first 8 bytes
+		k = make([]byte, 8+4)
 		if _, err := hex.Decode(k[0:8], []byte(tagValue[0:8*2])); err == nil {
 			offset = 8
 			dbi = b.indexTag32
-			return dbi, k[0 : offset+4], offset
+			return dbi, k[0 : 8+4], offset
 		}
 	}
 
 	// if it looks like an "a" tag, index it in this special format
 	spl := strings.Split(tagValue, ":")
 	if len(spl) == 3 && len(spl[1]) == 64 {
+		k = make([]byte, 2+8+30)
 		if _, err := hex.Decode(k[2:2+8], []byte(tagValue[0:8*2])); err == nil {
 			if kind, err := strconv.ParseUint(spl[0], 10, 16); err == nil {
 				k[0] = byte(kind >> 8)
@@ -145,6 +165,7 @@ func (b *LMDBBackend) getTagIndexPrefix(tagValue string) (lmdb.DBI, []byte, int)
 	}
 
 	// index whatever else as utf-8, but limit it to 40 bytes
+	k = make([]byte, 40+4)
 	n := copy(k[0:40], tagValue)
 	offset = n
 	dbi = b.indexTag

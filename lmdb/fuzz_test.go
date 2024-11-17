@@ -104,6 +104,10 @@ func FuzzQuery(f *testing.F) {
 		require.Equal(t, len(expected), len(res), "number of results is different than expected")
 
 		require.Less(t, end.Sub(start).Milliseconds(), int64(1500), "query took too long")
+		fmt.Println("---")
+		for _, evt := range res {
+			fmt.Println(evt.CreatedAt)
+		}
 		require.True(t, slices.IsSortedFunc(res, func(a, b *nostr.Event) int { return cmp.Compare(b.CreatedAt, a.CreatedAt) }), "results are not sorted")
 
 		nresults := len(expected)
