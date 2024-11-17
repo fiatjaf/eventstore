@@ -22,7 +22,8 @@ type LMDBBackend struct {
 	MaxLimitNegentropy int
 	MapSize            int64
 
-	lmdbEnv *lmdb.Env
+	lmdbEnv    *lmdb.Env
+	extraFlags uint // (for debugging and testing)
 
 	settingsStore   lmdb.DBI
 	rawEventStore   lmdb.DBI
@@ -67,7 +68,7 @@ func (b *LMDBBackend) Init() error {
 		return err
 	}
 
-	err = env.Open(b.Path, lmdb.NoTLS, 0644)
+	err = env.Open(b.Path, lmdb.NoTLS|lmdb.WriteMap|b.extraFlags, 0644)
 	if err != nil {
 		return err
 	}
