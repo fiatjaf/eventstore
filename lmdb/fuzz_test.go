@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -33,6 +34,10 @@ func FuzzQuery(f *testing.F) {
 		}
 
 		// ~ setup db
+		if err := os.RemoveAll("/tmp/lmdbtest"); err != nil {
+			t.Fatal(err)
+			return
+		}
 		db := &LMDBBackend{}
 		db.Path = "/tmp/lmdbtest"
 		db.extraFlags = lmdb.NoSync
@@ -96,7 +101,7 @@ func FuzzQuery(f *testing.F) {
 		w := eventstore.RelayWrapper{Store: db}
 
 		start := time.Now()
-		// fmt.Println(filter)
+
 		res, err := w.QuerySync(ctx, filter)
 		end := time.Now()
 
@@ -104,12 +109,6 @@ func FuzzQuery(f *testing.F) {
 		require.Equal(t, len(expected), len(res), "number of results is different than expected")
 
 		require.Less(t, end.Sub(start).Milliseconds(), int64(1500), "query took too long")
-		fmt.Println("---")
-		for _, evt := range res {
-			fmt.Println(evt.CreatedAt)
-		}
-		require.True(t, slices.IsSortedFunc(res, func(a, b *nostr.Event) int { return cmp.Compare(b.CreatedAt, a.CreatedAt) }), "results are not sorted")
-
 		nresults := len(expected)
 
 		getTimestamps := func(events []*nostr.Event) []nostr.Timestamp {
@@ -120,19 +119,19 @@ func FuzzQuery(f *testing.F) {
 			return res
 		}
 
-		// fmt.Println(" expected   result")
-		// ets := getTimestamps(expected)
-		// rts := getTimestamps(res)
-		// for i := range ets {
-		// 	fmt.Println(" ", ets[i], "  ", rts[i], "           ", i)
-		// }
+		fmt.Println(" expected   result")
+		for i := range expected {
+			fmt.Println(" ", expected[i].CreatedAt, expected[i].ID[0:8], "  ", res[i].CreatedAt, res[i].ID[0:8], "           ", i)
+		}
 
 		require.Equal(t, expected[0].CreatedAt, res[0].CreatedAt, "first result is wrong")
-		require.Equal(t, expected[nresults-1].CreatedAt, res[nresults-1].CreatedAt, "last result is wrong")
+		require.Equal(t, expected[nresults-1].CreatedAt, res[nresults-1].CreatedAt, "last result (%d) is wrong", nresults-1)
 		require.Equal(t, getTimestamps(expected), getTimestamps(res))
 
 		for _, evt := range res {
 			require.True(t, filter.Matches(evt), "event %s doesn't match filter %s", evt, filter)
 		}
+
+		require.True(t, slices.IsSortedFunc(res, func(a, b *nostr.Event) int { return cmp.Compare(b.CreatedAt, a.CreatedAt) }), "results are not sorted")
 	})
 }

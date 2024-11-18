@@ -122,7 +122,7 @@ func FuzzQuery(f *testing.F) {
 		w := eventstore.RelayWrapper{Store: db}
 
 		start := time.Now()
-		fmt.Println(filter)
+		// fmt.Println(filter)
 		res, err := w.QuerySync(ctx, filter)
 		end := time.Now()
 
@@ -143,10 +143,8 @@ func FuzzQuery(f *testing.F) {
 		}
 
 		// fmt.Println(" expected   result")
-		// ets := getTimestamps(expected)
-		// rts := getTimestamps(res)
-		// for i := range ets {
-		// 	fmt.Println(" ", ets[i], "  ", rts[i], "           ", i)
+		// for i := range expected {
+		// 	fmt.Println(" ", expected[i].CreatedAt, expected[i].ID[0:8], "  ", res[i].CreatedAt, res[i].ID[0:8], "           ", i)
 		// }
 
 		require.Equal(t, expected[0].CreatedAt, res[0].CreatedAt, "first result is wrong")

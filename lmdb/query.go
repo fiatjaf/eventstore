@@ -51,7 +51,7 @@ func (b *LMDBBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (cha
 		txn.RawRead = true
 		defer close(ch)
 
-		iterators := make([]iterator, len(queries))
+		iterators := make([]*iterator, len(queries))
 		exhausted := make([]bool, len(queries)) // indicates that a query won't be used anymore
 		results := make([][]internal.IterEvent, len(queries))
 		pulledPerQuery := make([]int, len(queries))
@@ -91,7 +91,7 @@ func (b *LMDBBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (cha
 			if err != nil {
 				return err
 			}
-			iterators[q] = iterator{cursor: cursor}
+			iterators[q] = &iterator{cursor: cursor}
 			defer cursor.Close()
 			iterators[q].seek(queries[q].startingPoint)
 			results[q] = make([]internal.IterEvent, 0, batchSizePerQuery*2)
@@ -122,7 +122,7 @@ func (b *LMDBBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (cha
 						len(it.key) != query.keySize ||
 						!bytes.HasPrefix(it.key, query.prefix) {
 						// either iteration has errored or we reached the end of this prefix
-						// fmt.Println("      reached end")
+						// fmt.Println("      reached end", it.key, query.keySize, query.prefix)
 						exhaust(q)
 						break
 					}
@@ -166,6 +166,8 @@ func (b *LMDBBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (cha
 						return fmt.Errorf("event read error: %w", err)
 					}
 
+					// fmt.Println("      event", hex.EncodeToString(val[0:4]), "kind", binary.BigEndian.Uint16(val[132:134]), "author", hex.EncodeToString(val[32:36]), "ts", nostr.Timestamp(binary.BigEndian.Uint32(val[128:132])), hex.EncodeToString(it.key), it.valIdx)
+
 					// if there is still a tag to be checked, do it now
 					if extraTagValues != nil && !event.Tags.ContainsAny(extraTagKey, extraTagValues) {
 						it.next()
@@ -182,19 +184,19 @@ func (b *LMDBBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (cha
 						// now we have to eliminate the event currently at the `since` threshold.
 						nextThreshold := firstPhaseResults[len(firstPhaseResults)-2]
 						if oldest.Event == nil {
-							// fmt.Println("          b1")
+							// fmt.Println("          b1", evt.ID[0:8])
 							// BRANCH WHEN WE DON'T HAVE THE OLDEST EVENT (BWWDHTOE)
 							// when we don't have the oldest set, we will keep the results
 							//   and not change the cutting point -- it's bad, but hopefully not that bad.
 							results[q] = append(results[q], evt)
 							secondPhaseHasResultsPending = true
 						} else if nextThreshold.CreatedAt > oldest.CreatedAt {
-							// fmt.Println("          b2", nextThreshold.CreatedAt, ">", oldest.CreatedAt)
+							// fmt.Println("          b2", nextThreshold.CreatedAt, ">", oldest.CreatedAt, evt.ID[0:8])
 							// one of the events we have stored is the actual next threshold
 							// eliminate last, update since with oldest
 							firstPhaseResults = firstPhaseResults[0 : len(firstPhaseResults)-1]
 							since = uint32(oldest.CreatedAt)
-							// fmt.Println("            new since", since)
+							// fmt.Println("            new since", since, evt.ID[0:8])
 							//  we null the oldest Event as we can't rely on it anymore
 							//   (we'll fall under BWWDHTOE above) until we have a new oldest set.
 							oldest = internal.IterEvent{Q: -1}
@@ -207,7 +209,7 @@ func (b *LMDBBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (cha
 							secondPhaseHasResultsPending = true
 						} else if nextThreshold.CreatedAt < evt.CreatedAt {
 							// the next last event in the firstPhaseResults is the next threshold
-							// fmt.Println("          b3", nextThreshold.CreatedAt, "<", oldest.CreatedAt)
+							// fmt.Println("          b3", nextThreshold.CreatedAt, "<", oldest.CreatedAt, evt.ID[0:8])
 							// eliminate last, update since with the antelast
 							firstPhaseResults = firstPhaseResults[0 : len(firstPhaseResults)-1]
 							since = uint32(nextThreshold.CreatedAt)
@@ -220,7 +222,7 @@ func (b *LMDBBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (cha
 								oldest = evt
 							}
 						} else {
-							// fmt.Println("          b4")
+							// fmt.Println("          b4", evt.ID[0:8])
 							// oops, _we_ are the next `since` threshold
 							firstPhaseResults[len(firstPhaseResults)-1] = evt
 							since = uint32(evt.CreatedAt)
@@ -243,6 +245,7 @@ func (b *LMDBBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (cha
 					if pulledThisIteration > batchSizePerQuery {
 						// batch filled
 						it.next()
+						// fmt.Println("        filled", hex.EncodeToString(it.key), it.valIdx)
 						break
 					}
 					if pulledPerQuery[q] >= limit {
@@ -257,7 +260,7 @@ func (b *LMDBBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (cha
 			}
 
 			// we will do this check if we don't accumulated the requested number of events yet
-			// fmt.Println("oldest", oldest.Event, "from iter", oldest.q)
+			// fmt.Println("oldest", oldest.Event, "from iter", oldest.Q)
 			if secondPhase && secondPhaseHasResultsPending && (oldest.Event == nil || remainingUnexhausted == 0) {
 				// fmt.Println("second phase aggregation!")
 				// when we are in the second phase we will aggressively aggregate results on every iteration

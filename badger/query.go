@@ -278,7 +278,7 @@ func (b *BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (c
 			}
 
 			// we will do this check if we don't accumulated the requested number of events yet
-			// fmt.Println("oldest", oldest.Event, "from iter", oldest.q)
+			// fmt.Println("oldest", oldest.Event, "from iter", oldest.Q)
 			if secondPhase && secondPhaseHasResultsPending && (oldest.Event == nil || remainingUnexhausted == 0) {
 				// fmt.Println("second phase aggregation!")
 				// when we are in the second phase we will aggressively aggregate results on every iteration

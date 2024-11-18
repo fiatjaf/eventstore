@@ -20,7 +20,7 @@ type iterator struct {
 	err    error
 }
 
-func (it iterator) seek(key []byte) {
+func (it *iterator) seek(key []byte) {
 	if _, _, errsr := it.cursor.Get(key, nil, lmdb.SetRange); errsr != nil {
 		if operr, ok := errsr.(*lmdb.OpError); !ok || operr.Errno != lmdb.NotFound {
 			// in this case it's really an error
@@ -36,7 +36,7 @@ func (it iterator) seek(key []byte) {
 	}
 }
 
-func (it iterator) next() {
+func (it *iterator) next() {
 	// move one back (we'll look into k and v and err in the next iteration)
 	it.key, it.valIdx, it.err = it.cursor.Get(nil, nil, lmdb.Prev)
 }
