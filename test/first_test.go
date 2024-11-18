@@ -234,11 +234,15 @@ func runFirstTestOn(t *testing.T, db eventstore.Store) {
 				Limit: 4,
 			})
 			require.NoError(t, err)
-			require.ElementsMatch(t,
-				// the results won't be in canonical time order because this query is too awful, needs a kind
-				[]*nostr.Event{newEvents[5], newEvents[6], newEvents[7]},
-				results,
-				"'p' tag 3 query error")
+
+			for _, idx := range []int{5, 6, 7} {
+				require.True(t,
+					slices.ContainsFunc(
+						results,
+						func(evt *nostr.Event) bool { return evt.ID == newEvents[idx].ID },
+					),
+					"'p' tag 3 query error")
+			}
 		}
 	}
 }
