@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/nbd-wtf/go-nostr"
+	"github.com/nbd-wtf/go-nostr/nip45/hyperloglog"
 )
 
 // Store is a persistence layer for nostr events handled by a relay.
@@ -26,4 +27,8 @@ type Store interface {
 
 type Counter interface {
 	CountEvents(context.Context, nostr.Filter) (int64, error)
+}
+
+type HLLCounter interface {
+	CountEventsHLL(context.Context, nostr.Filter) (int64, *hyperloglog.HyperLogLog, error)
 }
