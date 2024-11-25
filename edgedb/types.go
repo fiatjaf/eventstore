@@ -1,56 +1,11 @@
 package edgedb
 
 import (
-	"bytes"
 	"encoding/json"
 
 	"github.com/edgedb/edgedb-go"
 	"github.com/nbd-wtf/go-nostr"
 )
-
-// NewOptionalTags is a convenience function for creating an OptionalTags with its value set to tags
-func NewOptionalTags(tags [][]byte) OptionalTags {
-	o := OptionalTags{}
-	o.Set(tags)
-	return o
-}
-
-type OptionalTags struct {
-	edgedb.Optional
-	val [][]byte
-}
-
-func (o OptionalTags) Get() ([][]byte, bool) {
-	return o.val, !o.Missing()
-}
-
-// Set sets the vaue
-func (o *OptionalTags) Set(val [][]byte) {
-	o.val = val
-	o.SetMissing(val == nil)
-}
-
-// MarshalJSON returns o marshaled as json.
-func (o OptionalTags) MarshalJSON() ([]byte, error) {
-	if !o.Missing() {
-		return json.Marshal(o.val)
-	}
-	return []byte("[]"), nil
-}
-
-// UnmarshalJSON unmarshals bytes into *o.
-func (o *OptionalTags) UnmarshalJSON(b []byte) error {
-	if b[0] == 0x6e || (len(b) == 2 && bytes.Equal(b, []byte("[]"))) { //null
-		o.Unset()
-		return nil
-	}
-
-	if err := json.Unmarshal(b, &o.val); err != nil {
-		return err
-	}
-	o.SetMissing(false)
-	return nil
-}
 
 type Event struct {
 	ID        edgedb.UUID             `edgedb:"id"`

@@ -106,7 +106,7 @@ func (b *EdgeDBBackend) queryEventsEdgeql(filter nostr.Filter, doCount bool) (st
 		conditions = append(conditions, fmt.Sprintf(`(
 			with ts := (
 				for tag in array_unpack(events::Event.tags) UNION (
-					SELECT tag[1] if count(json_array_unpack(tag)) > 1 else <json>'' FILTER tag[0] = <json>'%s'
+					SELECT tag[1] if count(json_array_unpack(tag)) > 1 else <json>'' FILTER (tag[0] if count(json_array_unpack(tag)) > 0 else <json>'') = <json>'%s'
 				)
 			)
 			SELECT EXISTS (SELECT ts INTERSECT {%s})
