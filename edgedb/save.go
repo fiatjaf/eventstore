@@ -9,7 +9,7 @@ import (
 )
 
 func (b *EdgeDBBackend) SaveEvent(ctx context.Context, event *nostr.Event) error {
-	var tagsBytes [][]byte
+	tagsBytes := [][]byte{}
 	for _, t := range event.Tags {
 		tagBytes, err := json.Marshal(t)
 		if err != nil {
@@ -23,7 +23,7 @@ func (b *EdgeDBBackend) SaveEvent(ctx context.Context, event *nostr.Event) error
 		"pubkey":    event.PubKey,
 		"createdAt": edgedb.NewOptionalDateTime(event.CreatedAt.Time()),
 		"kind":      int64(event.Kind),
-		"tags":      NewOptionalTags(tagsBytes),
+		"tags":      tagsBytes,
 		"content":   event.Content,
 		"sig":       event.Sig,
 	}
