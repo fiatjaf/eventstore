@@ -23,7 +23,7 @@ func (b *EdgeDBBackend) SaveEvent(ctx context.Context, event *nostr.Event) error
 		"pubkey":    event.PubKey,
 		"createdAt": edgedb.NewOptionalDateTime(event.CreatedAt.Time()),
 		"kind":      int64(event.Kind),
-		"tags":      tagsBytes,
+		"tags":      NewOptionalTags(tagsBytes),
 		"content":   event.Content,
 		"sig":       event.Sig,
 	}
