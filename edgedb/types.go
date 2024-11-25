@@ -27,7 +27,7 @@ func (o OptionalTags) Get() ([][]byte, bool) {
 // Set sets the vaue
 func (o *OptionalTags) Set(val [][]byte) {
 	o.val = val
-	o.SetMissing(false)
+	o.SetMissing(val == nil)
 }
 
 // MarshalJSON returns o marshaled as json.
