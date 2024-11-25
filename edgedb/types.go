@@ -20,9 +20,9 @@ type Event struct {
 
 // NostrEventToEdgeDBEvent converts the event from the nostr.Event datatype to edgedb.Event
 func NostrEventToEdgeDBEvent(event *nostr.Event) (Event, error) {
-	var tagsBytes [][]byte
-	for _, e := range event.Tags {
-		tagBytes, err := json.Marshal(e)
+	tagsBytes := [][]byte{}
+	for _, t := range event.Tags {
+		tagBytes, err := json.Marshal(t)
 		if err != nil {
 			return Event{}, err
 		}
