@@ -7,8 +7,8 @@ import (
 
 	"github.com/PowerDNS/lmdb-go/lmdb"
 	"github.com/fiatjaf/eventstore"
+	bin "github.com/fiatjaf/eventstore/internal/binary"
 	"github.com/nbd-wtf/go-nostr"
-	nostr_binary "github.com/nbd-wtf/go-nostr/binary"
 )
 
 func (b *LMDBBackend) SaveEvent(ctx context.Context, evt *nostr.Event) error {
@@ -27,7 +27,7 @@ func (b *LMDBBackend) SaveEvent(ctx context.Context, evt *nostr.Event) error {
 		}
 
 		// encode to binary form so we'll save it
-		bin, err := nostr_binary.Marshal(evt)
+		bin, err := bin.Marshal(evt)
 		if err != nil {
 			return err
 		}
@@ -38,8 +38,9 @@ func (b *LMDBBackend) SaveEvent(ctx context.Context, evt *nostr.Event) error {
 			return err
 		}
 
-		for _, k := range b.getIndexKeysForEvent(evt) {
-			if err := txn.Put(k.dbi, k.key, idx, 0); err != nil {
+		for k := range b.getIndexKeysForEvent(evt) {
+			err := txn.Put(k.dbi, k.key, idx, 0)
+			if err != nil {
 				return err
 			}
 		}

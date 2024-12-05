@@ -5,15 +5,16 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/fiatjaf/cli/v3"
 	"github.com/mailru/easyjson"
 	"github.com/nbd-wtf/go-nostr"
-	"github.com/fiatjaf/cli/v3"
 )
 
 var save = &cli.Command{
 	Name:        "save",
-	Usage:       "stores an event in the database -- doesn't perform any kind of replacement",
-	Description: ``,
+	ArgsUsage:   "[<event-json>]",
+	Usage:       "stores an event",
+	Description: "takes either an event as an argument or reads a stream of events from stdin and inserts those in the currently opened eventstore.\ndoesn't perform any kind of signature checking or replacement.",
 	Action: func(ctx context.Context, c *cli.Command) error {
 		hasError := false
 		for line := range getStdinLinesOrFirstArgument(c) {

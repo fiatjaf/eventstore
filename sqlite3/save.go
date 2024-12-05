@@ -12,7 +12,7 @@ func (b *SQLite3Backend) SaveEvent(ctx context.Context, evt *nostr.Event) error 
 	// insert
 	tagsj, _ := json.Marshal(evt.Tags)
 	res, err := b.DB.ExecContext(ctx, `
-        INSERT INTO event (id, pubkey, created_at, kind, tags, content, sig)
+        INSERT OR IGNORE INTO event (id, pubkey, created_at, kind, tags, content, sig)
         VALUES ($1, $2, $3, $4, $5, $6, $7)
     `, evt.ID, evt.PubKey, evt.CreatedAt, evt.Kind, tagsj, evt.Content, evt.Sig)
 	if err != nil {

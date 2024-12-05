@@ -1,21 +1,25 @@
 package main
 
 import (
+	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"strings"
 
+	"github.com/fiatjaf/cli/v3"
 	"github.com/fiatjaf/eventstore"
 	"github.com/fiatjaf/eventstore/badger"
-	"github.com/fiatjaf/eventstore/bolt"
 	"github.com/fiatjaf/eventstore/elasticsearch"
 	"github.com/fiatjaf/eventstore/lmdb"
 	"github.com/fiatjaf/eventstore/mysql"
 	"github.com/fiatjaf/eventstore/postgresql"
+	"github.com/fiatjaf/eventstore/slicestore"
 	"github.com/fiatjaf/eventstore/sqlite3"
 	"github.com/fiatjaf/eventstore/strfry"
-	"github.com/fiatjaf/cli/v3"
+	"github.com/nbd-wtf/go-nostr"
 )
 
 var db eventstore.Store
@@ -34,7 +38,7 @@ var app = &cli.Command{
 		&cli.StringFlag{
 			Name:    "type",
 			Aliases: []string{"t"},
-			Usage:   "store type ('sqlite', 'lmdb', 'bolt', 'badger', 'postgres', 'mysql', 'elasticsearch')",
+			Usage:   "store type ('sqlite', 'lmdb', 'badger', 'postgres', 'mysql', 'elasticsearch')",
 		},
 	},
 	Before: func(ctx context.Context, c *cli.Command) error {
@@ -55,6 +59,8 @@ var app = &cli.Command{
 				typ = "elasticsearch"
 			case strings.HasSuffix(path, ".conf"):
 				typ = "strfry"
+			case strings.HasSuffix(path, ".jsonl"):
+				typ = "file"
 			default:
 				// try to detect based on the form and names of disk files
 				dbname, err := detect(path)
@@ -81,8 +87,6 @@ var app = &cli.Command{
 			}
 		case "lmdb":
 			db = &lmdb.LMDBBackend{Path: path, MaxLimit: 1_000_000}
-		case "bolt":
-			db = &bolt.BoltBackend{Path: path, MaxLimit: 1_000_000}
 		case "badger":
 			db = &badger.BadgerBackend{Path: path, MaxLimit: 1_000_000}
 		case "postgres", "postgresql":
@@ -107,6 +111,28 @@ var app = &cli.Command{
 			db = &elasticsearch.ElasticsearchStorage{URL: path}
 		case "strfry":
 			db = &strfry.StrfryBackend{ConfigPath: path}
+		case "file":
+			db = &slicestore.SliceStore{}
+
+			// run this after we've called db.Init()
+			defer func() {
+				f, err := os.Open(path)
+				if err != nil {
+					log.Printf("failed to file at '%s': %s\n", path, err)
+					os.Exit(3)
+				}
+				scanner := bufio.NewScanner(f)
+				scanner.Buffer(make([]byte, 16*1024*1024), 256*1024*1024)
+				i := 0
+				for scanner.Scan() {
+					var evt nostr.Event
+					if err := json.Unmarshal(scanner.Bytes(), &evt); err != nil {
+						log.Printf("invalid event read at line %d: %s (`%s`)\n", i, err, scanner.Text())
+					}
+					db.SaveEvent(ctx, &evt)
+					i++
+				}
+			}()
 		case "":
 			return fmt.Errorf("couldn't determine store type, you can use --type to specify it manually")
 		default:
@@ -120,6 +146,7 @@ var app = &cli.Command{
 		query,
 		save,
 		delete_,
+		neg,
 	},
 	DefaultCommand: "query-or-save",
 }

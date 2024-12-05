@@ -30,7 +30,8 @@ func detect(dir string) (string, error) {
 		if string(buf) == "SQLite format 3" {
 			return "sqlite", nil
 		}
-		return "bolt", nil
+
+		return "", fmt.Errorf("unknown db format")
 	}
 
 	entries, err := os.ReadDir(dir)

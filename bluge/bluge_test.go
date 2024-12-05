@@ -5,16 +5,16 @@ import (
 	"os"
 	"testing"
 
-	"github.com/fiatjaf/eventstore/bolt"
+	"github.com/fiatjaf/eventstore/badger"
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestBlugeFlow(t *testing.T) {
-	os.RemoveAll("/tmp/blugetest-bolt")
+	os.RemoveAll("/tmp/blugetest-badger")
 	os.RemoveAll("/tmp/blugetest-bluge")
 
-	bb := &bolt.BoltBackend{Path: "/tmp/blugetest-bolt"}
+	bb := &badger.BadgerBackend{Path: "/tmp/blugetest-badger"}
 	bb.Init()
 	defer bb.Close()
 

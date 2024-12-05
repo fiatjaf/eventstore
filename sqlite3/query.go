@@ -3,6 +3,7 @@ package sqlite3
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -58,18 +59,26 @@ func (b SQLite3Backend) CountEvents(ctx context.Context, filter nostr.Filter) (i
 	return count, nil
 }
 
+var (
+	TooManyIDs       = errors.New("too many ids")
+	TooManyAuthors   = errors.New("too many authors")
+	TooManyKinds     = errors.New("too many kinds")
+	TooManyTagValues = errors.New("too many tag values")
+	EmptyTagSet      = errors.New("empty tag set")
+)
+
 func makePlaceHolders(n int) string {
 	return strings.TrimRight(strings.Repeat("?,", n), ",")
 }
 
 func (b SQLite3Backend) queryEventsSql(filter nostr.Filter, doCount bool) (string, []any, error) {
-	var conditions []string
-	var params []any
+	conditions := make([]string, 0, 7)
+	params := make([]any, 0, 20)
 
 	if len(filter.IDs) > 0 {
 		if len(filter.IDs) > 500 {
 			// too many ids, fail everything
-			return "", nil, nil
+			return "", nil, TooManyIDs
 		}
 
 		for _, v := range filter.IDs {
@@ -81,7 +90,7 @@ func (b SQLite3Backend) queryEventsSql(filter nostr.Filter, doCount bool) (strin
 	if len(filter.Authors) > 0 {
 		if len(filter.Authors) > b.QueryAuthorsLimit {
 			// too many authors, fail everything
-			return "", nil, nil
+			return "", nil, TooManyAuthors
 		}
 
 		for _, v := range filter.Authors {
@@ -93,7 +102,7 @@ func (b SQLite3Backend) queryEventsSql(filter nostr.Filter, doCount bool) (strin
 	if len(filter.Kinds) > 0 {
 		if len(filter.Kinds) > 10 {
 			// too many kinds, fail everything
-			return "", nil, nil
+			return "", nil, TooManyKinds
 		}
 
 		for _, v := range filter.Kinds {
@@ -102,31 +111,29 @@ func (b SQLite3Backend) queryEventsSql(filter nostr.Filter, doCount bool) (strin
 		conditions = append(conditions, `kind IN (`+makePlaceHolders(len(filter.Kinds))+`)`)
 	}
 
-	tagQuery := make([]string, 0, 1)
+	// tags
+	totalTags := 0
+	// we use a very bad implementation in which we only check the tag values and ignore the tag names
 	for _, values := range filter.Tags {
 		if len(values) == 0 {
 			// any tag set to [] is wrong
-			return "", nil, nil
+			return "", nil, EmptyTagSet
 		}
 
-		// add these tags to the query
-		tagQuery = append(tagQuery, values...)
-
-		if len(tagQuery) > 10 {
-			// too many tags, fail everything
-			return "", nil, nil
-		}
-	}
-
-	// we use a very bad implementation in which we only check the tag values and
-	// ignore the tag names
-	if len(tagQuery) > 0 {
-		orTag := make([]string, len(tagQuery))
-		for i, tagValue := range tagQuery {
+		orTag := make([]string, len(values))
+		for i, tagValue := range values {
 			orTag[i] = `tags LIKE ? ESCAPE '\'`
 			params = append(params, `%`+strings.ReplaceAll(tagValue, `%`, `\%`)+`%`)
 		}
+
+		// each separate tag key is an independent condition
 		conditions = append(conditions, "("+strings.Join(orTag, "OR ")+")")
+
+		totalTags += len(values)
+		if totalTags > b.QueryTagsLimit {
+			// too many tags, fail everything
+			return "", nil, TooManyTagValues
+		}
 	}
 
 	if filter.Since != nil {
@@ -165,7 +172,7 @@ func (b SQLite3Backend) queryEventsSql(filter nostr.Filter, doCount bool) (strin
           id, pubkey, created_at, kind, tags, content, sig
         FROM event WHERE `+
 			strings.Join(conditions, " AND ")+
-			" ORDER BY created_at DESC LIMIT ?")
+			" ORDER BY created_at DESC, id LIMIT ?")
 	}
 
 	return query, params, nil

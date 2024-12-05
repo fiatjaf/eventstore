@@ -155,7 +155,7 @@ func (ess *ElasticsearchStorage) QueryEvents(ctx context.Context, filter nostr.F
 
 		es.Search.WithBody(bytes.NewReader(dsl)),
 		es.Search.WithSize(limit),
-		es.Search.WithSort("event.created_at:desc"),
+		es.Search.WithSort("event.created_at:desc", "event.id"),
 	)
 	if err != nil {
 		log.Fatalf("Error getting response: %s", err)

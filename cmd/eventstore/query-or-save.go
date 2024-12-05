@@ -6,10 +6,11 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/nbd-wtf/go-nostr"
 	"github.com/fiatjaf/cli/v3"
+	"github.com/nbd-wtf/go-nostr"
 )
 
+// this is the default command when no subcommands are given, we will just try everything
 var queryOrSave = &cli.Command{
 	Hidden: true,
 	Name:   "query-or-save",

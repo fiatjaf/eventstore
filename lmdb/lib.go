@@ -17,10 +17,13 @@ const (
 var _ eventstore.Store = (*LMDBBackend)(nil)
 
 type LMDBBackend struct {
-	Path     string
-	MaxLimit int
+	Path               string
+	MaxLimit           int
+	MaxLimitNegentropy int
+	MapSize            int64
 
-	lmdbEnv *lmdb.Env
+	lmdbEnv    *lmdb.Env
+	extraFlags uint // (for debugging and testing)
 
 	settingsStore   lmdb.DBI
 	rawEventStore   lmdb.DBI
@@ -32,31 +35,40 @@ type LMDBBackend struct {
 	indexTag        lmdb.DBI
 	indexTag32      lmdb.DBI
 	indexTagAddr    lmdb.DBI
+	indexPTagKind   lmdb.DBI
 
 	lastId atomic.Uint32
 }
 
 func (b *LMDBBackend) Init() error {
-	if b.MaxLimit == 0 {
+	if b.MaxLimit != 0 {
+		b.MaxLimitNegentropy = b.MaxLimit
+	} else {
 		b.MaxLimit = 500
+		if b.MaxLimitNegentropy == 0 {
+			b.MaxLimitNegentropy = 16777216
+		}
 	}
 
-	// open lmdb
 	env, err := lmdb.NewEnv()
 	if err != nil {
 		return err
 	}
 
-	env.SetMaxDBs(10)
+	env.SetMaxDBs(11)
 	env.SetMaxReaders(1000)
-	env.SetMapSize(1 << 38) // ~273GB
+	if b.MapSize == 0 {
+		env.SetMapSize(1 << 38) // ~273GB
+	} else {
+		env.SetMapSize(b.MapSize)
+	}
 
 	// create directory if it doesn't exist and open it
 	if err := os.MkdirAll(b.Path, 0755); err != nil {
 		return err
 	}
 
-	err = env.Open(b.Path, lmdb.NoTLS, 0644)
+	err = env.Open(b.Path, lmdb.NoTLS|lmdb.WriteMap|b.extraFlags, 0644)
 	if err != nil {
 		return err
 	}
@@ -116,6 +128,11 @@ func (b *LMDBBackend) Init() error {
 		} else {
 			b.indexTagAddr = dbi
 		}
+		if dbi, err := txn.OpenDBI("ptagKind", multiIndexCreationFlags); err != nil {
+			return err
+		} else {
+			b.indexPTagKind = dbi
+		}
 		return nil
 	}); err != nil {
 		return err
@@ -155,9 +172,4 @@ func (b *LMDBBackend) Serial() []byte {
 	vb := make([]byte, 4)
 	binary.BigEndian.PutUint32(vb[:], uint32(v))
 	return vb
-}
-
-type key struct {
-	dbi lmdb.DBI
-	key []byte
 }

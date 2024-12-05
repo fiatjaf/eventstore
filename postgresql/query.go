@@ -72,8 +72,8 @@ var (
 )
 
 func (b PostgresBackend) queryEventsSql(filter nostr.Filter, doCount bool) (string, []any, error) {
-	var conditions []string
-	var params []any
+	conditions := make([]string, 0, 7)
+	params := make([]any, 0, 20)
 
 	if len(filter.IDs) > 0 {
 		if len(filter.IDs) > b.QueryIDsLimit {
@@ -111,28 +111,25 @@ func (b PostgresBackend) queryEventsSql(filter nostr.Filter, doCount bool) (stri
 		conditions = append(conditions, `kind IN (`+makePlaceHolders(len(filter.Kinds))+`)`)
 	}
 
-	tagQuery := make([]string, 0, 1)
+	totalTags := 0
 	for _, values := range filter.Tags {
 		if len(values) == 0 {
 			// any tag set to [] is wrong
 			return "", nil, EmptyTagSet
 		}
 
-		// add these tags to the query
-		tagQuery = append(tagQuery, values...)
-
-		if len(tagQuery) > b.QueryTagsLimit {
-			// too many tags, fail everything
-			return "", nil, TooManyTagValues
-		}
-	}
-
-	if len(tagQuery) > 0 {
-		for _, tagValue := range tagQuery {
+		for _, tagValue := range values {
 			params = append(params, tagValue)
 		}
 
-		conditions = append(conditions, `tagvalues @> ARRAY[`+makePlaceHolders(len(tagQuery))+`]`)
+		// each separate tag key is an independent condition
+		conditions = append(conditions, `tagvalues && ARRAY[`+makePlaceHolders(len(values))+`]`)
+
+		totalTags += len(values)
+		if totalTags > b.QueryTagsLimit {
+			// too many tags, fail everything
+			return "", nil, TooManyTagValues
+		}
 	}
 
 	if filter.Since != nil {
@@ -171,7 +168,7 @@ func (b PostgresBackend) queryEventsSql(filter nostr.Filter, doCount bool) (stri
           id, pubkey, created_at, kind, tags, content, sig
         FROM event WHERE `+
 			strings.Join(conditions, " AND ")+
-			" ORDER BY created_at DESC LIMIT ?")
+			" ORDER BY created_at DESC, id LIMIT ?")
 	}
 
 	return query, params, nil

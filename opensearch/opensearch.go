@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -101,7 +102,7 @@ func (oss *OpensearchStorage) Init() error {
 			return err
 		}
 	}
-	fmt.Printf("Created Index: %s\n  Shards Acknowledged: %t\n", createIndexResponse.Index, createIndexResponse.ShardsAcknowledged)
+	log.Printf("Created Index: %s\n  Shards Acknowledged: %t\n", createIndexResponse.Index, createIndexResponse.ShardsAcknowledged)
 
 	// bulk indexer
 	bi, err := opensearchutil.NewBulkIndexer(opensearchutil.BulkIndexerConfig{
