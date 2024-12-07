@@ -37,6 +37,9 @@ type LMDBBackend struct {
 	indexTagAddr    lmdb.DBI
 	indexPTagKind   lmdb.DBI
 
+	hllCache          lmdb.DBI
+	EnableHLLCacheFor func(kind int) (useCache bool, skipSavingActualEvent bool)
+
 	lastId atomic.Uint32
 }
 
@@ -55,7 +58,7 @@ func (b *LMDBBackend) Init() error {
 		return err
 	}
 
-	env.SetMaxDBs(11)
+	env.SetMaxDBs(12)
 	env.SetMaxReaders(1000)
 	if b.MapSize == 0 {
 		env.SetMapSize(1 << 38) // ~273GB
@@ -132,6 +135,11 @@ func (b *LMDBBackend) Init() error {
 			return err
 		} else {
 			b.indexPTagKind = dbi
+		}
+		if dbi, err := txn.OpenDBI("hllCache", lmdb.Create); err != nil {
+			return err
+		} else {
+			b.hllCache = dbi
 		}
 		return nil
 	}); err != nil {
