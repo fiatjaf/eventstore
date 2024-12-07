@@ -82,7 +82,7 @@ func (b *MultiMmapManager) Init() error {
 		return err
 	}
 
-	env.SetMaxDBs(2)
+	env.SetMaxDBs(3)
 	env.SetMaxReaders(1000)
 	env.SetMapSize(1 << 38) // ~273GB
 
