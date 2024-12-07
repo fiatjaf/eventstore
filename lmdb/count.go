@@ -118,7 +118,7 @@ func (b *LMDBBackend) CountEventsHLL(ctx context.Context, filter nostr.Filter, o
 	var count int64 = 0
 
 	// this is different than CountEvents because some of these extra checks are not applicable in HLL-valid filters
-	queries, _, extraKinds, _, _, since, err := b.prepareQueries(filter)
+	queries, _, extraKinds, extraTagKey, extraTagValues, since, err := b.prepareQueries(filter)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -174,7 +174,7 @@ func (b *LMDBBackend) CountEventsHLL(ctx context.Context, filter nostr.Filter, o
 					panic(err)
 				}
 
-				if extraKinds == nil {
+				if extraKinds == nil && extraTagValues == nil {
 					// nothing extra to check
 					count++
 					hll.AddBytes(val[32:64])
@@ -186,6 +186,11 @@ func (b *LMDBBackend) CountEventsHLL(ctx context.Context, filter nostr.Filter, o
 
 					evt := &nostr.Event{}
 					if err := bin.Unmarshal(val, evt); err != nil {
+						goto loopend
+					}
+
+					// if there is still a tag to be checked, do it now
+					if !evt.Tags.ContainsAny(extraTagKey, extraTagValues) {
 						goto loopend
 					}
 
