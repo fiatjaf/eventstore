@@ -18,6 +18,19 @@ func (b *LMDBBackend) SaveEvent(ctx context.Context, evt *nostr.Event) error {
 	}
 
 	return b.lmdbEnv.Update(func(txn *lmdb.Txn) error {
+		// modify hyperloglog caches relative to this
+		useCache, skipSaving := b.EnableHLLCacheFor(evt.Kind)
+
+		if useCache {
+			err := b.updateHyperLogLogCachedValues(txn, evt)
+			if err != nil {
+				return fmt.Errorf("failed to update hll cache: %w", err)
+			}
+			if skipSaving {
+				return nil
+			}
+		}
+
 		// check if we already have this id
 		id, _ := hex.DecodeString(evt.ID)
 		_, err := txn.Get(b.indexId, id)
@@ -38,6 +51,7 @@ func (b *LMDBBackend) SaveEvent(ctx context.Context, evt *nostr.Event) error {
 			return err
 		}
 
+		// put indexes
 		for k := range b.getIndexKeysForEvent(evt) {
 			err := txn.Put(k.dbi, k.key, idx, 0)
 			if err != nil {
