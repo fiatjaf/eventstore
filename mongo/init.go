@@ -17,7 +17,7 @@ const (
 
 func (m *MongoDBBackend) Init() error {
 	m.ctx = context.Background()
-	client, err := mongo.Connect(options.Client().ApplyURI(url.QueryEscape(m.DatabaseURL)))
+	client, err := mongo.Connect(options.Client().ApplyURI(m.DatabaseURL))
 	if err != nil {
 		return err
 	}
