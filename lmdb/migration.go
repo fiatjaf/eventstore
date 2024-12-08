@@ -2,7 +2,6 @@ package lmdb
 
 import (
 	"encoding/binary"
-	"encoding/hex"
 	"fmt"
 	"log"
 
@@ -29,10 +28,10 @@ func (b *LMDBBackend) runMigrations() error {
 			version = binary.BigEndian.Uint16(v)
 		}
 
-		// the 4 first migrations go to trash because on version 3 we need to export and import all the data anyway
+		// all previous migrations are useless because we will just reindex everything
 		if version == 0 {
 			// if there is any data in the relay we will just set the version to the max without saying anything
-			cursor, err := txn.OpenCursor(b.indexId)
+			cursor, err := txn.OpenCursor(b.rawEventStore)
 			if err != nil {
 				return fmt.Errorf("failed to open cursor in migration: %w", err)
 			}
@@ -46,7 +45,7 @@ func (b *LMDBBackend) runMigrations() error {
 			}
 
 			if !hasAnyEntries {
-				b.setVersion(txn, 5)
+				b.setVersion(txn, 6)
 				return nil
 			}
 		}
@@ -54,43 +53,76 @@ func (b *LMDBBackend) runMigrations() error {
 		// do the migrations in increasing steps (there is no rollback)
 		//
 
-		// this is when we added the ptag-kind-createdat index
-		if version < 5 {
-			log.Println("[lmdb] migration 5: reindex events with \"p\" tags for the ptagKind index")
+		// this is when we reindex everything
+		if version < 7 {
+			log.Println("[lmdb] migration 7: reindex everything")
 
-			cursor, err := txn.OpenCursor(b.indexTag32)
+			if err := txn.Drop(b.indexId, false); err != nil {
+				return err
+			}
+			if err := txn.Drop(b.indexCreatedAt, false); err != nil {
+				return err
+			}
+			if err := txn.Drop(b.indexKind, false); err != nil {
+				return err
+			}
+			if err := txn.Drop(b.indexPTagKind, false); err != nil {
+				return err
+			}
+			if err := txn.Drop(b.indexPubkey, false); err != nil {
+				return err
+			}
+			if err := txn.Drop(b.indexPubkeyKind, false); err != nil {
+				return err
+			}
+			if err := txn.Drop(b.indexTag, false); err != nil {
+				return err
+			}
+			if err := txn.Drop(b.indexTag32, false); err != nil {
+				return err
+			}
+			if err := txn.Drop(b.indexTagAddr, false); err != nil {
+				return err
+			}
+
+			cursor, err := txn.OpenCursor(b.rawEventStore)
 			if err != nil {
-				return fmt.Errorf("failed to open cursor in migration 5: %w", err)
+				return fmt.Errorf("failed to open cursor in migration 7: %w", err)
 			}
 			defer cursor.Close()
 
-			key, idx, err := cursor.Get(nil, nil, lmdb.First)
+			seen := make(map[[32]byte]struct{})
+
+			idx, val, err := cursor.Get(nil, nil, lmdb.First)
 			for err == nil {
-				if val, err := txn.Get(b.rawEventStore, idx); err != nil {
-					return fmt.Errorf("error getting binary event for %x on migration 5: %w", idx, err)
-				} else {
-					evt := &nostr.Event{}
-					if err := bin.Unmarshal(val, evt); err != nil {
-						return fmt.Errorf("error decoding event %x on migration 5: %w", idx, err)
+				idp := *(*[32]byte)(val[0:32])
+				if _, isDup := seen[idp]; isDup {
+					// do not index, but delete this entry
+					if err := txn.Del(b.rawEventStore, idx, nil); err != nil {
+						return err
 					}
 
-					tagFirstChars := hex.EncodeToString(key[0:8])
-					// we do this to prevent indexing other tags as "p" and also to not index the same event twice
-					// this ensure we only do one ptagKind for each tag32 entry (if the tag32 happens to be a "p")
-					if evt.Tags.GetFirst([]string{"p", tagFirstChars}) != nil {
-						log.Printf("[lmdb] applying to key %x", key)
-						newkey := make([]byte, 8+2+4)
-						copy(newkey, key[0:8])
-						binary.BigEndian.PutUint16(newkey[8:8+2], uint16(evt.Kind))
-						binary.BigEndian.PutUint32(newkey[8+2:8+2+4], uint32(evt.CreatedAt))
-						if err := txn.Put(b.indexPTagKind, newkey, idx, 0); err != nil {
-							return fmt.Errorf("error saving tag on migration 5: %w", err)
-						}
+					// next
+					idx, val, err = cursor.Get(nil, nil, lmdb.Next)
+					continue
+				}
+
+				seen[idp] = struct{}{}
+
+				evt := &nostr.Event{}
+				if err := bin.Unmarshal(val, evt); err != nil {
+					return fmt.Errorf("error decoding event %x on migration 5: %w", idx, err)
+				}
+
+				for key := range b.getIndexKeysForEvent(evt) {
+					if err := txn.Put(key.dbi, key.key, idx, 0); err != nil {
+						return fmt.Errorf("failed to save index %s for event %s (%v) on migration 7: %w",
+							b.keyName(key), evt.ID, idx, err)
 					}
 				}
 
 				// next
-				key, idx, err = cursor.Get(nil, nil, lmdb.Next)
+				idx, val, err = cursor.Get(nil, nil, lmdb.Next)
 			}
 			if lmdbErr, ok := err.(*lmdb.OpError); ok && lmdbErr.Errno != lmdb.NotFound {
 				// exited the loop with an error different from NOTFOUND
@@ -98,7 +130,7 @@ func (b *LMDBBackend) runMigrations() error {
 			}
 
 			// bump version
-			if err := b.setVersion(txn, 5); err != nil {
+			if err := b.setVersion(txn, 7); err != nil {
 				return err
 			}
 		}

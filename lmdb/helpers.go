@@ -3,6 +3,7 @@ package lmdb
 import (
 	"encoding/binary"
 	"encoding/hex"
+	"fmt"
 	"iter"
 	"strconv"
 	"strings"
@@ -44,6 +45,10 @@ func (it *iterator) next() {
 type key struct {
 	dbi lmdb.DBI
 	key []byte
+}
+
+func (b *LMDBBackend) keyName(key key) string {
+	return fmt.Sprintf("<dbi=%s key=%x>", b.dbiName(key.dbi), key.key)
 }
 
 func (b *LMDBBackend) getIndexKeysForEvent(evt *nostr.Event) iter.Seq[key] {
@@ -171,4 +176,35 @@ func (b *LMDBBackend) getTagIndexPrefix(tagValue string) (lmdb.DBI, []byte, int)
 	dbi = b.indexTag
 
 	return dbi, k[0 : n+4], offset
+}
+
+func (b *LMDBBackend) dbiName(dbi lmdb.DBI) string {
+	switch dbi {
+	case b.hllCache:
+		return "hllCache"
+	case b.settingsStore:
+		return "settingsStore"
+	case b.rawEventStore:
+		return "rawEventStore"
+	case b.indexCreatedAt:
+		return "indexCreatedAt"
+	case b.indexId:
+		return "indexId"
+	case b.indexKind:
+		return "indexKind"
+	case b.indexPubkey:
+		return "indexPubkey"
+	case b.indexPubkeyKind:
+		return "indexPubkeyKind"
+	case b.indexTag:
+		return "indexTag"
+	case b.indexTag32:
+		return "indexTag32"
+	case b.indexTagAddr:
+		return "indexTagAddr"
+	case b.indexPTagKind:
+		return "indexPTagKind"
+	default:
+		return "<unexpected>"
+	}
 }

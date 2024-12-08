@@ -2,6 +2,7 @@ package lmdb
 
 import (
 	"encoding/binary"
+	"fmt"
 	"os"
 	"sync/atomic"
 
@@ -53,6 +54,51 @@ func (b *LMDBBackend) Init() error {
 		}
 	}
 
+	// create directory if it doesn't exist and open it
+	if err := os.MkdirAll(b.Path, 0755); err != nil {
+		return err
+	}
+
+	return b.initialize()
+}
+
+func (b *LMDBBackend) Close() {
+	b.lmdbEnv.Close()
+}
+
+func (b *LMDBBackend) Serial() []byte {
+	v := b.lastId.Add(1)
+	vb := make([]byte, 4)
+	binary.BigEndian.PutUint32(vb[:], uint32(v))
+	return vb
+}
+
+// Compact can only be called when the database is not being used because it will overwrite everything.
+// It will temporarily move the database to a new location, then move it back.
+// If something goes wrong crash the process and look for the copy of the data on tmppath.
+func (b *LMDBBackend) Compact(tmppath string) error {
+	if err := os.MkdirAll(tmppath, 0755); err != nil {
+		return err
+	}
+
+	if err := b.lmdbEnv.Copy(tmppath); err != nil {
+		return fmt.Errorf("failed to copy: %w", err)
+	}
+
+	if err := b.lmdbEnv.Close(); err != nil {
+		return err
+	}
+	if err := os.RemoveAll(b.Path); err != nil {
+		return err
+	}
+	if err := os.Rename(tmppath, b.Path); err != nil {
+		return err
+	}
+
+	return b.initialize()
+}
+
+func (b *LMDBBackend) initialize() error {
 	env, err := lmdb.NewEnv()
 	if err != nil {
 		return err
@@ -66,13 +112,7 @@ func (b *LMDBBackend) Init() error {
 		env.SetMapSize(b.MapSize)
 	}
 
-	// create directory if it doesn't exist and open it
-	if err := os.MkdirAll(b.Path, 0755); err != nil {
-		return err
-	}
-
-	err = env.Open(b.Path, lmdb.NoTLS|lmdb.WriteMap|b.extraFlags, 0644)
-	if err != nil {
+	if err := env.Open(b.Path, lmdb.NoTLS|lmdb.WriteMap|b.extraFlags, 0644); err != nil {
 		return err
 	}
 	b.lmdbEnv = env
@@ -169,15 +209,4 @@ func (b *LMDBBackend) Init() error {
 	}
 
 	return b.runMigrations()
-}
-
-func (b *LMDBBackend) Close() {
-	b.lmdbEnv.Close()
-}
-
-func (b *LMDBBackend) Serial() []byte {
-	v := b.lastId.Add(1)
-	vb := make([]byte, 4)
-	binary.BigEndian.PutUint32(vb[:], uint32(v))
-	return vb
 }

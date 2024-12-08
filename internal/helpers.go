@@ -10,6 +10,11 @@ import (
 	"github.com/nbd-wtf/go-nostr"
 )
 
+func IsOlder(previous, next *nostr.Event) bool {
+	return previous.CreatedAt < next.CreatedAt ||
+		(previous.CreatedAt == next.CreatedAt && previous.ID > next.ID)
+}
+
 func ChooseNarrowestTag(filter nostr.Filter) (key string, values []string, goodness int) {
 	var tagKey string
 	var tagValues []string

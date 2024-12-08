@@ -24,6 +24,10 @@ type Store interface {
 	SaveEvent(context.Context, *nostr.Event) error
 }
 
+type Replacer interface {
+	Replace(context.Context, *nostr.Event) error
+}
+
 type Counter interface {
 	CountEvents(context.Context, nostr.Filter) (int64, error)
 }
