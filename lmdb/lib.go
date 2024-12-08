@@ -10,11 +10,6 @@ import (
 	"github.com/fiatjaf/eventstore"
 )
 
-const (
-	maxuint16 = 65535
-	maxuint32 = 4294967295
-)
-
 var _ eventstore.Store = (*LMDBBackend)(nil)
 
 type LMDBBackend struct {
