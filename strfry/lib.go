@@ -65,6 +65,10 @@ func (s StrfryBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch
 	return ch, nil
 }
 
+func (s *StrfryBackend) ReplaceEvent(ctx context.Context, evt *nostr.Event) error {
+	return s.SaveEvent(ctx, evt)
+}
+
 func (s StrfryBackend) SaveEvent(ctx context.Context, evt *nostr.Event) error {
 	args := make([]string, 0, 4)
 	if s.ConfigPath != "" {
