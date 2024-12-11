@@ -54,8 +54,8 @@ func (b *LMDBBackend) runMigrations() error {
 		//
 
 		// this is when we reindex everything
-		if version < 7 {
-			log.Println("[lmdb] migration 7: reindex everything")
+		if version < 8 {
+			log.Println("[lmdb] migration 8: reindex everything")
 
 			if err := txn.Drop(b.indexId, false); err != nil {
 				return err
@@ -87,7 +87,7 @@ func (b *LMDBBackend) runMigrations() error {
 
 			cursor, err := txn.OpenCursor(b.rawEventStore)
 			if err != nil {
-				return fmt.Errorf("failed to open cursor in migration 7: %w", err)
+				return fmt.Errorf("failed to open cursor in migration 8: %w", err)
 			}
 			defer cursor.Close()
 
@@ -116,7 +116,7 @@ func (b *LMDBBackend) runMigrations() error {
 
 				for key := range b.getIndexKeysForEvent(evt) {
 					if err := txn.Put(key.dbi, key.key, idx, 0); err != nil {
-						return fmt.Errorf("failed to save index %s for event %s (%v) on migration 7: %w",
+						return fmt.Errorf("failed to save index %s for event %s (%v) on migration 8: %w",
 							b.keyName(key), evt.ID, idx, err)
 					}
 				}
@@ -130,7 +130,7 @@ func (b *LMDBBackend) runMigrations() error {
 			}
 
 			// bump version
-			if err := b.setVersion(txn, 7); err != nil {
+			if err := b.setVersion(txn, 8); err != nil {
 				return err
 			}
 		}

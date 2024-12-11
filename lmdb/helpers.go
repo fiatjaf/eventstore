@@ -1,6 +1,7 @@
 package lmdb
 
 import (
+	"crypto/md5"
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
@@ -169,13 +170,15 @@ func (b *LMDBBackend) getTagIndexPrefix(tagValue string) (lmdb.DBI, []byte, int)
 		}
 	}
 
-	// index whatever else as utf-8, but limit it to 40 bytes
-	k = make([]byte, 40+4)
-	n := copy(k[0:40], tagValue)
-	offset = n
+	// index whatever else as a md5 hash of the contents
+	h := md5.New()
+	h.Write([]byte(tagValue))
+	k = make([]byte, 0, 16+4)
+	k = h.Sum(k)
+	offset = 16
 	dbi = b.indexTag
 
-	return dbi, k[0 : n+4], offset
+	return dbi, k[0 : 16+4], offset
 }
 
 func (b *LMDBBackend) dbiName(dbi lmdb.DBI) string {
