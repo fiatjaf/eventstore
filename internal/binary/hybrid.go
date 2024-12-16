@@ -58,7 +58,7 @@ func Marshal(evt *nostr.Event) ([]byte, error) {
 	hex.Decode(buf[64:128], []byte(evt.Sig))
 
 	if evt.CreatedAt > MaxCreatedAt {
-		return nil, fmt.Errorf("created_at is too big: %d, max is %d", evt.CreatedAt, MaxCreatedAt)
+		return nil, fmt.Errorf("created_at is too big: %d", evt.CreatedAt)
 	}
 	binary.BigEndian.PutUint32(buf[128:132], uint32(evt.CreatedAt))
 
