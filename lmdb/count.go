@@ -30,36 +30,21 @@ func (b *LMDBBackend) CountEvents(ctx context.Context, filter nostr.Filter) (int
 				continue
 			}
 
-			var k []byte
-			var idx []byte
-			var iterr error
-
-			if _, _, errsr := cursor.Get(q.startingPoint, nil, lmdb.SetRange); errsr != nil {
-				if operr, ok := errsr.(*lmdb.OpError); !ok || operr.Errno != lmdb.NotFound {
-					// in this case it's really an error
-					panic(operr)
-				} else {
-					// we're at the end and we just want notes before this,
-					// so we just need to set the cursor the last key, this is not a real error
-					k, idx, iterr = cursor.Get(nil, nil, lmdb.Last)
-				}
-			} else {
-				// move one back as the first step
-				k, idx, iterr = cursor.Get(nil, nil, lmdb.Prev)
-			}
+			it := &iterator{cursor: cursor}
+			it.seek(q.startingPoint)
 
 			for {
 				// we already have a k and a v and an err from the cursor setup, so check and use these
-				if iterr != nil ||
-					len(k) != q.keySize ||
-					!bytes.HasPrefix(k, q.prefix) {
+				if it.err != nil ||
+					len(it.key) != q.keySize ||
+					!bytes.HasPrefix(it.key, q.prefix) {
 					// either iteration has errored or we reached the end of this prefix
 					break // stop this cursor and move to the next one
 				}
 
 				// "id" indexes don't contain a timestamp
 				if q.timestampSize == 4 {
-					createdAt := binary.BigEndian.Uint32(k[len(k)-4:])
+					createdAt := binary.BigEndian.Uint32(it.key[len(it.key)-4:])
 					if createdAt < since {
 						break
 					}
@@ -69,37 +54,37 @@ func (b *LMDBBackend) CountEvents(ctx context.Context, filter nostr.Filter) (int
 					count++
 				} else {
 					// fetch actual event
-					val, err := txn.Get(b.rawEventStore, idx)
+					val, err := txn.Get(b.rawEventStore, it.valIdx)
 					if err != nil {
 						panic(err)
 					}
 
 					// check it against pubkeys without decoding the entire thing
 					if !slices.Contains(extraAuthors, [32]byte(val[32:64])) {
-						goto loopend
+						it.next()
+						continue
 					}
 
 					// check it against kinds without decoding the entire thing
 					if !slices.Contains(extraKinds, [2]byte(val[132:134])) {
-						goto loopend
+						it.next()
+						continue
 					}
 
 					evt := &nostr.Event{}
 					if err := bin.Unmarshal(val, evt); err != nil {
-						goto loopend
+						it.next()
+						continue
 					}
 
 					// if there is still a tag to be checked, do it now
 					if !evt.Tags.ContainsAny(extraTagKey, extraTagValues) {
-						goto loopend
+						it.next()
+						continue
 					}
 
 					count++
 				}
-
-				// move one back (we'll look into k and v and err in the next iteration)
-			loopend:
-				k, idx, iterr = cursor.Get(nil, nil, lmdb.Prev)
 			}
 		}
 
@@ -133,43 +118,28 @@ func (b *LMDBBackend) CountEventsHLL(ctx context.Context, filter nostr.Filter, o
 				continue
 			}
 
-			var k []byte
-			var idx []byte
-			var iterr error
-
-			if _, _, errsr := cursor.Get(q.startingPoint, nil, lmdb.SetRange); errsr != nil {
-				if operr, ok := errsr.(*lmdb.OpError); !ok || operr.Errno != lmdb.NotFound {
-					// in this case it's really an error
-					panic(operr)
-				} else {
-					// we're at the end and we just want notes before this,
-					// so we just need to set the cursor the last key, this is not a real error
-					k, idx, iterr = cursor.Get(nil, nil, lmdb.Last)
-				}
-			} else {
-				// move one back as the first step
-				k, idx, iterr = cursor.Get(nil, nil, lmdb.Prev)
-			}
+			it := &iterator{cursor: cursor}
+			it.seek(q.startingPoint)
 
 			for {
 				// we already have a k and a v and an err from the cursor setup, so check and use these
-				if iterr != nil ||
-					len(k) != q.keySize ||
-					!bytes.HasPrefix(k, q.prefix) {
+				if it.err != nil ||
+					len(it.key) != q.keySize ||
+					!bytes.HasPrefix(it.key, q.prefix) {
 					// either iteration has errored or we reached the end of this prefix
 					break // stop this cursor and move to the next one
 				}
 
 				// "id" indexes don't contain a timestamp
 				if q.timestampSize == 4 {
-					createdAt := binary.BigEndian.Uint32(k[len(k)-4:])
+					createdAt := binary.BigEndian.Uint32(it.key[len(it.key)-4:])
 					if createdAt < since {
 						break
 					}
 				}
 
 				// fetch actual event (we need it regardless because we need the pubkey for the hll)
-				val, err := txn.Get(b.rawEventStore, idx)
+				val, err := txn.Get(b.rawEventStore, it.valIdx)
 				if err != nil {
 					panic(err)
 				}
@@ -181,26 +151,25 @@ func (b *LMDBBackend) CountEventsHLL(ctx context.Context, filter nostr.Filter, o
 				} else {
 					// check it against kinds without decoding the entire thing
 					if !slices.Contains(extraKinds, [2]byte(val[132:134])) {
-						goto loopend
+						it.next()
+						continue
 					}
 
 					evt := &nostr.Event{}
 					if err := bin.Unmarshal(val, evt); err != nil {
-						goto loopend
+						it.next()
+						continue
 					}
 
 					// if there is still a tag to be checked, do it now
 					if !evt.Tags.ContainsAny(extraTagKey, extraTagValues) {
-						goto loopend
+						it.next()
+						continue
 					}
 
 					count++
 					hll.Add(evt.PubKey)
 				}
-
-				// move one back (we'll look into k and v and err in the next iteration)
-			loopend:
-				k, idx, iterr = cursor.Get(nil, nil, lmdb.Prev)
 			}
 		}
 

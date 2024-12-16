@@ -19,7 +19,7 @@ func (b *LMDBBackend) runMigrations() error {
 		var version uint16
 		v, err := txn.Get(b.settingsStore, []byte{DB_VERSION})
 		if err != nil {
-			if lmdbErr, ok := err.(*lmdb.OpError); ok && lmdbErr.Errno == lmdb.NotFound {
+			if lmdb.IsNotFound(err) {
 				version = 0
 			} else if v == nil {
 				return fmt.Errorf("failed to read database version: %w", err)

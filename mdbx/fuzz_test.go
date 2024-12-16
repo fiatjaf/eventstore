@@ -40,7 +40,7 @@ func FuzzQuery(f *testing.F) {
 		}
 		db := &MDBXBackend{}
 		db.Path = "/tmp/mdbxtest"
-		db.extraFlags = mdbx.TxNoSync
+		db.extraFlags = mdbx.UtterlyNoSync
 		db.MaxLimit = 500
 		if err := db.Init(); err != nil {
 			t.Fatal(err)

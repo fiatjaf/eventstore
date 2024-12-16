@@ -190,11 +190,12 @@ func (b *LMDBBackend) initialize() error {
 		}
 		defer cursor.Close()
 		k, _, err := cursor.Get(nil, nil, lmdb.Last)
-		if operr, ok := err.(*lmdb.OpError); ok && operr.Errno == lmdb.NotFound {
+		if lmdb.IsNotFound(err) {
 			// nothing found, so we're at zero
 			return nil
 		}
 		if err != nil {
+			return err
 		}
 		b.lastId.Store(binary.BigEndian.Uint32(k))
 

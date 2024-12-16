@@ -24,9 +24,9 @@ type iterator struct {
 
 func (it *iterator) seek(key []byte) {
 	if _, _, errsr := it.cursor.Get(key, nil, mdbx.SetRange); errsr != nil {
-		if operr, ok := errsr.(*mdbx.OpError); !ok || operr.Errno != mdbx.NotFound {
+		if !mdbx.IsNotFound(errsr) {
 			// in this case it's really an error
-			panic(operr)
+			panic(errsr)
 		} else {
 			// we're at the end and we just want notes before this,
 			// so we just need to set the cursor the last key, this is not a real error

@@ -16,7 +16,7 @@ func (b *MDBXBackend) runMigrations() error {
 		var version uint16
 		v, err := txn.Get(b.settingsStore, []byte{DB_VERSION})
 		if err != nil {
-			if mdbxErr, ok := err.(*mdbx.OpError); ok && mdbxErr.Errno == mdbx.NotFound {
+			if mdbx.IsNotFound(err) {
 				version = 0
 			} else if v == nil {
 				return fmt.Errorf("failed to read database version: %w", err)

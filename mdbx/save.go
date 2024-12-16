@@ -19,23 +19,25 @@ func (b *MDBXBackend) SaveEvent(ctx context.Context, evt *nostr.Event) error {
 	}
 
 	return b.mdbxEnv.Update(func(txn *mdbx.Txn) error {
-		// modify hyperloglog caches relative to this
-		useCache, skipSaving := b.EnableHLLCacheFor(evt.Kind)
+		if b.EnableHLLCacheFor != nil {
+			// modify hyperloglog caches relative to this
+			useCache, skipSaving := b.EnableHLLCacheFor(evt.Kind)
 
-		if useCache {
-			err := b.updateHyperLogLogCachedValues(txn, evt)
-			if err != nil {
-				return fmt.Errorf("failed to update hll cache: %w", err)
-			}
-			if skipSaving {
-				return nil
+			if useCache {
+				err := b.updateHyperLogLogCachedValues(txn, evt)
+				if err != nil {
+					return fmt.Errorf("failed to update hll cache: %w", err)
+				}
+				if skipSaving {
+					return nil
+				}
 			}
 		}
 
 		// check if we already have this id
 		id, _ := hex.DecodeString(evt.ID)
 		_, err := txn.Get(b.indexId, id)
-		if operr, ok := err.(*mdbx.OpError); ok && operr.Errno != mdbx.NotFound {
+		if !mdbx.IsNotFound(err) {
 			// we will only proceed if we get a NotFound
 			return eventstore.ErrDupEvent
 		}

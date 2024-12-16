@@ -162,11 +162,12 @@ func (b *MDBXBackend) initialize() error {
 		}
 		defer cursor.Close()
 		k, _, err := cursor.Get(nil, nil, mdbx.Last)
-		if operr, ok := err.(*mdbx.OpError); ok && operr.Errno == mdbx.NotFound {
+		if mdbx.IsNotFound(err) {
 			// nothing found, so we're at zero
 			return nil
 		}
 		if err != nil {
+			return err
 		}
 		b.lastId.Store(binary.BigEndian.Uint32(k))
 
