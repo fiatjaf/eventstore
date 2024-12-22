@@ -42,7 +42,7 @@ func (b *MDBXBackend) Init() error {
 	if b.MaxLimit != 0 {
 		b.MaxLimitNegentropy = b.MaxLimit
 	} else {
-		b.MaxLimit = 500
+		b.MaxLimit = 1400
 		if b.MaxLimitNegentropy == 0 {
 			b.MaxLimitNegentropy = 16777216
 		}
