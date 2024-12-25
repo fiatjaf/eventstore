@@ -10,7 +10,6 @@ import (
 	"github.com/fiatjaf/eventstore"
 	"github.com/fiatjaf/eventstore/badger"
 	"github.com/fiatjaf/eventstore/lmdb"
-	"github.com/fiatjaf/eventstore/mdbx"
 	"github.com/fiatjaf/eventstore/slicestore"
 	"github.com/fiatjaf/eventstore/sqlite3"
 	"github.com/nbd-wtf/go-nostr"
@@ -25,14 +24,6 @@ func BenchmarkSliceStore(b *testing.B) {
 func BenchmarkLMDB(b *testing.B) {
 	os.RemoveAll(dbpath + "lmdb")
 	l := &lmdb.LMDBBackend{Path: dbpath + "lmdb"}
-	l.Init()
-
-	runBenchmarkOn(b, l)
-}
-
-func BenchmarkMDBX(b *testing.B) {
-	os.RemoveAll(dbpath + "lmdb")
-	l := &mdbx.MDBXBackend{Path: dbpath + "lmdb"}
 	l.Init()
 
 	runBenchmarkOn(b, l)
