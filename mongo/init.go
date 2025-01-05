@@ -2,8 +2,10 @@ package mongo
 
 import (
 	"context"
+	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
+	"log"
 )
 
 const (
@@ -14,11 +16,41 @@ const (
 	queryTagsLimit    = 10
 )
 
+var indexs = []mongo.IndexModel{
+	{
+		Keys:    bson.M{"id": 1},
+		Options: options.Index().SetUnique(true),
+	},
+	{
+		Keys:    bson.M{"pubkey": 1},
+		Options: options.Index(),
+	},
+	{
+		Keys:    bson.M{"createdat": -1},
+		Options: options.Index(),
+	},
+	{
+		Keys:    bson.M{"kind": 1},
+		Options: options.Index(),
+	},
+	{
+		Keys:    bson.D{{"kind", 1}, {"createdat", -1}},
+		Options: options.Index(),
+	},
+}
+
 func (m *MongoDBBackend) Init() error {
 	m.ctx = context.Background()
 	client, err := mongo.Connect(options.Client().ApplyURI(m.DatabaseURL))
 	if err != nil {
 		return err
+	}
+	collection := client.Database("events").Collection("events")
+	for _, index := range indexs {
+		_, err = collection.Indexes().CreateOne(context.TODO(), index)
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 	m.Client = client
 	if m.QueryAuthorsLimit == 0 {
