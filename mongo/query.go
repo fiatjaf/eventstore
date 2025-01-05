@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"github.com/nbd-wtf/go-nostr"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
@@ -72,7 +71,6 @@ func (m *MongoDBBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (
 
 func (m *MongoDBBackend) CountEvents(ctx context.Context, filter nostr.Filter) (int64, error) {
 	var count int64
-	fmt.Println(filter)
 	conditions, projection, err := m.queryEvents(filter, true)
 	if err != nil {
 		return 0, err
@@ -131,7 +129,6 @@ func (m *MongoDBBackend) queryEvents(filter nostr.Filter, doCount bool) (bson.D,
 		}
 	}
 	if filter.Since != nil {
-		//conditions = append(conditions, `created_at >= ?`)
 		conditions = append(conditions, bson.E{Key: "since", Value: bson.M{"$gte": filter.Since}})
 	}
 	if filter.Until != nil {
