@@ -16,6 +16,6 @@ type MongoDBBackend struct {
 	QueryTagsLimit    int
 }
 
-func (b *MongoDBBackend) Close() {
-	b.Client.Disconnect(b.ctx)
+func (m *MongoDBBackend) Close() {
+	m.Client.Disconnect(m.ctx)
 }
