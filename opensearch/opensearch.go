@@ -10,9 +10,11 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/fiatjaf/eventstore"
+	"github.com/fiatjaf/eventstore/internal"
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/opensearch-project/opensearch-go/v4"
 	"github.com/opensearch-project/opensearch-go/v4/opensearchapi"
@@ -52,6 +54,7 @@ var indexMapping = `
 `
 
 type OpensearchStorage struct {
+	sync.Mutex
 	URL       string
 	IndexName string
 	Insecure  bool
@@ -153,6 +156,40 @@ func (oss *OpensearchStorage) DeleteEvent(ctx context.Context, evt *nostr.Event)
 
 	err = <-done
 	return err
+}
+
+func (oss *OpensearchStorage) ReplaceEvent(ctx context.Context, evt *nostr.Event) error {
+	oss.Lock()
+	defer oss.Unlock()
+
+	filter := nostr.Filter{Limit: 1, Kinds: []int{evt.Kind}, Authors: []string{evt.PubKey}}
+	if nostr.IsAddressableKind(evt.Kind) {
+		filter.Tags = nostr.TagMap{"d": []string{evt.Tags.GetD()}}
+	}
+
+	ch, err := oss.QueryEvents(ctx, filter)
+	if err != nil {
+		return fmt.Errorf("failed to query before replacing: %w", err)
+	}
+
+	shouldStore := true
+	for previous := range ch {
+		if internal.IsOlder(previous, evt) {
+			if err := oss.DeleteEvent(ctx, previous); err != nil {
+				return fmt.Errorf("failed to delete event for replacing: %w", err)
+			}
+		} else {
+			shouldStore = false
+		}
+	}
+
+	if shouldStore {
+		if err := oss.SaveEvent(ctx, evt); err != nil && err != eventstore.ErrDupEvent {
+			return fmt.Errorf("failed to save: %w", err)
+		}
+	}
+
+	return nil
 }
 
 func (oss *OpensearchStorage) SaveEvent(ctx context.Context, evt *nostr.Event) error {

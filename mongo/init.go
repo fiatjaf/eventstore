@@ -2,10 +2,11 @@ package mongo
 
 import (
 	"context"
+	"log"
+
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
-	"log"
 )
 
 const (
@@ -34,7 +35,7 @@ var indexs = []mongo.IndexModel{
 		Options: options.Index(),
 	},
 	{
-		Keys:    bson.D{{"kind", 1}, {"createdat", -1}},
+		Keys:    bson.D{{Key: "kind", Value: 1}, {Key: "createdat", Value: -1}},
 		Options: options.Index(),
 	},
 }

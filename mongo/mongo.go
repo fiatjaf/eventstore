@@ -2,10 +2,13 @@ package mongo
 
 import (
 	"context"
+	"sync"
+
 	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 type MongoDBBackend struct {
+	sync.Mutex
 	*mongo.Client
 	ctx               context.Context
 	DatabaseURL       string

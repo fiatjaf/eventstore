@@ -7,11 +7,13 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/elastic/go-elasticsearch/v8"
 	"github.com/elastic/go-elasticsearch/v8/esutil"
 	"github.com/fiatjaf/eventstore"
+	"github.com/fiatjaf/eventstore/internal"
 	"github.com/nbd-wtf/go-nostr"
 )
 
@@ -48,6 +50,7 @@ var indexMapping = `
 `
 
 type ElasticsearchStorage struct {
+	sync.Mutex
 	URL       string
 	IndexName string
 
@@ -132,6 +135,40 @@ func (ess *ElasticsearchStorage) DeleteEvent(ctx context.Context, evt *nostr.Eve
 
 	err = <-done
 	return err
+}
+
+func (ess *ElasticsearchStorage) ReplaceEvent(ctx context.Context, evt *nostr.Event) error {
+	ess.Lock()
+	defer ess.Unlock()
+
+	filter := nostr.Filter{Limit: 1, Kinds: []int{evt.Kind}, Authors: []string{evt.PubKey}}
+	if nostr.IsAddressableKind(evt.Kind) {
+		filter.Tags = nostr.TagMap{"d": []string{evt.Tags.GetD()}}
+	}
+
+	ch, err := ess.QueryEvents(ctx, filter)
+	if err != nil {
+		return fmt.Errorf("failed to query before replacing: %w", err)
+	}
+
+	shouldStore := true
+	for previous := range ch {
+		if internal.IsOlder(previous, evt) {
+			if err := ess.DeleteEvent(ctx, previous); err != nil {
+				return fmt.Errorf("failed to delete event for replacing: %w", err)
+			}
+		} else {
+			shouldStore = false
+		}
+	}
+
+	if shouldStore {
+		if err := ess.SaveEvent(ctx, evt); err != nil && err != eventstore.ErrDupEvent {
+			return fmt.Errorf("failed to save: %w", err)
+		}
+	}
+
+	return nil
 }
 
 func (ess *ElasticsearchStorage) SaveEvent(ctx context.Context, evt *nostr.Event) error {

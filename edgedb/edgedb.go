@@ -1,8 +1,13 @@
 package edgedb
 
-import "github.com/edgedb/edgedb-go"
+import (
+	"sync"
+
+	"github.com/edgedb/edgedb-go"
+)
 
 type EdgeDBBackend struct {
+	sync.Mutex
 	*edgedb.Client
 	DatabaseURI       string
 	TLSSkipVerify     bool

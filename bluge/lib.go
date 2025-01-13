@@ -2,6 +2,7 @@ package bluge
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/blugelabs/bluge"
 	"github.com/blugelabs/bluge/analysis/token"
@@ -12,6 +13,7 @@ import (
 var _ eventstore.Store = (*BlugeBackend)(nil)
 
 type BlugeBackend struct {
+	sync.Mutex
 	// Path is where the index will be saved
 	Path string
 

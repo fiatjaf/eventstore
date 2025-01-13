@@ -1,10 +1,13 @@
 package postgresql
 
 import (
+	"sync"
+
 	"github.com/jmoiron/sqlx"
 )
 
 type PostgresBackend struct {
+	sync.Mutex
 	*sqlx.DB
 	DatabaseURL       string
 	QueryLimit        int

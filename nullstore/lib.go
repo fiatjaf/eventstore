@@ -30,3 +30,7 @@ func (b NullStore) QueryEvents(ctx context.Context, filter nostr.Filter) (chan *
 func (b NullStore) SaveEvent(ctx context.Context, evt *nostr.Event) error {
 	return nil
 }
+
+func (b NullStore) ReplaceEvent(ctx context.Context, evt *nostr.Event) error {
+	return nil
+}
