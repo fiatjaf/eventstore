@@ -22,10 +22,9 @@ type Store interface {
 	DeleteEvent(context.Context, *nostr.Event) error
 	// SaveEvent just saves an event, no side-effects.
 	SaveEvent(context.Context, *nostr.Event) error
-}
-
-type Replacer interface {
-	Replace(context.Context, *nostr.Event) error
+	// ReplaceEvent atomically replaces a replaceable or addressable event.
+	// Conceptually it is like a Query->Delete->Save, but streamlined.
+	ReplaceEvent(context.Context, *nostr.Event) error
 }
 
 type Counter interface {
