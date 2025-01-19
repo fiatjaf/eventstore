@@ -27,13 +27,13 @@ func (il *IndexingLayer) ReplaceEvent(ctx context.Context, evt *nostr.Event) err
 
 		return il.lmdbEnv.Update(func(iltxn *lmdb.Txn) error {
 			// now we fetch the past events, whatever they are, delete them and then save the new
-			results, err := il.query(iltxn, filter, 10) // in theory limit could be just 1 and this should work
+			prevResults, err := il.query(iltxn, filter, 10) // in theory limit could be just 1 and this should work
 			if err != nil {
 				return fmt.Errorf("failed to query past events with %s: %w", filter, err)
 			}
 
 			shouldStore := true
-			for _, previous := range results {
+			for _, previous := range prevResults {
 				if internal.IsOlder(previous.Event, evt) {
 					if err := il.delete(mmmtxn, iltxn, previous.Event); err != nil {
 						return fmt.Errorf("failed to delete event %s for replacing: %w", previous.Event.ID, err)

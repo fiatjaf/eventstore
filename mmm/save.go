@@ -117,33 +117,29 @@ func (b *MultiMmapManager) storeOn(mmmtxn *lmdb.Txn, ils []*IndexingLayer, iltxn
 	idPrefix8, _ := hex.DecodeString(evt.ID[0 : 8*2])
 	val, err := mmmtxn.Get(b.indexId, idPrefix8)
 	if err == nil {
-		// we found the event, which means it is already indexed by every layer who wanted to index it
-		return false, nil
-	}
-
-	// we will only proceed if we get a NotFound -- for anything else we will error
-	if !lmdb.IsNotFound(err) {
-		return false, fmt.Errorf("error storing: %w", err)
-	}
-
-	// prepare value to be saved in the id index
-	// val: [posb][layerIdRefs...]
-	val = make([]byte, 12, 12+2*len(b.layers))
-
-	// these are the bytes we must fill in with the position once we have it
-	reservedResults := make([][]byte, 0, len(b.layers))
-
-	for i, il := range ils {
-		iltxn := iltxns[i]
-		// start a txn here and close it at the end only as we will have to use the valReserve arrays later
-		for k := range il.getIndexKeysForEvent(evt) {
-			valReserve, err := iltxn.PutReserve(k.dbi, k.key, 12, 0)
-			if err != nil {
-				b.Logger.Warn().Str("name", il.name).Msg("failed to index event on layer")
+		// we found the event, now check if it is already indexed by the layers that want to store it
+		for i := len(ils) - 1; i >= 0; i-- {
+			for s := 12; s < len(val); s += 2 {
+				ilid := binary.BigEndian.Uint16(val[s : s+2])
+				if ils[i].id == ilid {
+					// swap delete this il, but keep the deleted ones at the end
+					// (so the caller can successfully finalize the transactions)
+					ils[i], ils[len(ils)-1] = ils[len(ils)-1], ils[i]
+					ils = ils[0 : len(ils)-1]
+					iltxns[i], iltxns[len(iltxns)-1] = iltxns[len(iltxns)-1], iltxns[i]
+					iltxns = iltxns[0 : len(iltxns)-1]
+					break
+				}
 			}
-			reservedResults = append(reservedResults, valReserve)
 		}
-		val = binary.BigEndian.AppendUint16(val, il.id)
+	} else if !lmdb.IsNotFound(err) {
+		// now if we got an error from lmdb we will only proceed if we get a NotFound -- for anything else we will error
+		return false, fmt.Errorf("error checking existence: %w", err)
+	}
+
+	// if all ils already have this event indexed (or no il was given) we can end here
+	if len(ils) == 0 {
+		return false, nil
 	}
 
 	// find a suitable place for this to be stored in
@@ -189,17 +185,25 @@ func (b *MultiMmapManager) storeOn(mmmtxn *lmdb.Txn, ils []*IndexingLayer, iltxn
 	// write to the mmap
 	betterbinary.Marshal(*evt, b.mmapf[pos.start:])
 
-	// this is what we will write in the indexes
-	posb := make([]byte, 12)
-	binary.BigEndian.PutUint32(posb[0:4], pos.size)
-	binary.BigEndian.PutUint64(posb[4:12], pos.start)
+	// prepare value to be saved in the id index (if we didn't have it already)
+	// val: [posb][layerIdRefs...]
+	if val == nil {
+		val = make([]byte, 12, 12+2*len(b.layers))
+		binary.BigEndian.PutUint32(val[0:4], pos.size)
+		binary.BigEndian.PutUint64(val[4:12], pos.start)
+	}
 
-	// the id index (it already had the refcounts, but was missing the pos)
-	copy(val[0:12], posb)
+	// each index that was reserved above for the different layers
+	for i, il := range ils {
+		iltxn := iltxns[i]
 
-	// each index that was reserved above for the different Layers
-	for _, valReserve := range reservedResults {
-		copy(valReserve, posb)
+		for k := range il.getIndexKeysForEvent(evt) {
+			if err := iltxn.Put(k.dbi, k.key, val[0:12] /* pos */, 0); err != nil {
+				b.Logger.Warn().Str("name", il.name).Msg("failed to index event on layer")
+			}
+		}
+
+		val = binary.BigEndian.AppendUint16(val, il.id)
 	}
 
 	// store the id index with the refcounts

@@ -24,7 +24,7 @@ func (il *IndexingLayer) delete(mmmtxn *lmdb.Txn, iltxn *lmdb.Txn, evt *nostr.Ev
 	zeroRefs := false
 	b := il.mmmm
 
-	b.Logger.Debug().Str("layer", il.name).Uint16("id", il.id).Msg("deleting")
+	b.Logger.Debug().Str("layer", il.name).Uint16("il", il.id).Msg("deleting")
 
 	// first in the mmmm txn we check if we have the event still
 	idPrefix8, _ := hex.DecodeString(evt.ID[0 : 8*2])
@@ -70,7 +70,9 @@ func (il *IndexingLayer) delete(mmmtxn *lmdb.Txn, iltxn *lmdb.Txn, evt *nostr.Ev
 
 	// if there are no more refs we delete the event from the id index and mmap
 	if zeroRefs {
-		b.purge(mmmtxn, idPrefix8, pos)
+		if err := b.purge(mmmtxn, idPrefix8, pos); err != nil {
+			panic(err)
+		}
 	}
 
 	return nil

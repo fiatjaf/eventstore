@@ -2,6 +2,7 @@ package mmm
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -19,9 +20,10 @@ func TestMultiLayerIndexing(t *testing.T) {
 
 	logger := zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr})
 
-	// initialize MMM with two layers:
+	// initialize MMM with three layers:
 	// 1. odd timestamps layer
 	// 2. even timestamps layer
+	// 3. all events layer
 	mmm := &MultiMmapManager{
 		Dir:    tmpDir,
 		Logger: &logger,
@@ -36,6 +38,8 @@ func TestMultiLayerIndexing(t *testing.T) {
 						return evt.CreatedAt%2 == 1
 					case "even":
 						return evt.CreatedAt%2 == 0
+					case "all":
+						return true
 					}
 					return false
 				},
@@ -47,12 +51,12 @@ func TestMultiLayerIndexing(t *testing.T) {
 	require.NoError(t, err)
 	defer mmm.Close()
 
-	// create odd timestamps layer
+	// create layers
 	err = mmm.CreateLayer("odd")
 	require.NoError(t, err)
-
-	// create even timestamps layer
 	err = mmm.CreateLayer("even")
+	require.NoError(t, err)
+	err = mmm.CreateLayer("all")
 	require.NoError(t, err)
 
 	// create test events
@@ -74,31 +78,188 @@ func TestMultiLayerIndexing(t *testing.T) {
 		require.True(t, stored)
 	}
 
-	// query odd layer
-	oddResults, err := mmm.layers[0].QueryEvents(ctx, nostr.Filter{
-		Kinds: []int{1},
-		Since: &baseTime,
-	})
+	{
+		// query odd layer
+		oddResults, err := mmm.layers[0].QueryEvents(ctx, nostr.Filter{
+			Kinds: []int{1},
+		})
+		require.NoError(t, err)
+
+		oddCount := 0
+		for evt := range oddResults {
+			require.Equal(t, evt.CreatedAt%2, nostr.Timestamp(1))
+			oddCount++
+		}
+		require.Equal(t, 5, oddCount)
+	}
+
+	{
+		// query even layer
+		evenResults, err := mmm.layers[1].QueryEvents(ctx, nostr.Filter{
+			Kinds: []int{1},
+		})
+		require.NoError(t, err)
+
+		evenCount := 0
+		for evt := range evenResults {
+			require.Equal(t, evt.CreatedAt%2, nostr.Timestamp(0))
+			evenCount++
+		}
+		require.Equal(t, 5, evenCount)
+	}
+
+	{
+		// query all layer
+		allResults, err := mmm.layers[2].QueryEvents(ctx, nostr.Filter{
+			Kinds: []int{1},
+		})
+		require.NoError(t, err)
+
+		allCount := 0
+		for range allResults {
+			allCount++
+		}
+		require.Equal(t, 10, allCount)
+	}
+
+	// delete some events
+	err = mmm.layers[0].DeleteEvent(ctx, events[1]) // odd timestamp
+	require.NoError(t, err)
+	err = mmm.layers[1].DeleteEvent(ctx, events[2]) // even timestamp
 	require.NoError(t, err)
 
-	oddCount := 0
-	for evt := range oddResults {
-		require.Equal(t, evt.CreatedAt%2, nostr.Timestamp(1))
-		oddCount++
+	// verify deletions
+	{
+		oddResults, err := mmm.layers[0].QueryEvents(ctx, nostr.Filter{
+			Kinds: []int{1},
+		})
+		require.NoError(t, err)
+		oddCount := 0
+		for range oddResults {
+			oddCount++
+		}
+		require.Equal(t, 4, oddCount)
 	}
-	require.Equal(t, 5, oddCount)
 
-	// query even layer
-	evenResults, err := mmm.layers[1].QueryEvents(ctx, nostr.Filter{
-		Kinds: []int{1},
-		Since: &baseTime,
-	})
-	require.NoError(t, err)
-
-	evenCount := 0
-	for evt := range evenResults {
-		require.Equal(t, evt.CreatedAt%2, nostr.Timestamp(0))
-		evenCount++
+	{
+		evenResults, err := mmm.layers[1].QueryEvents(ctx, nostr.Filter{
+			Kinds: []int{1},
+		})
+		require.NoError(t, err)
+		evenCount := 0
+		for range evenResults {
+			evenCount++
+		}
+		require.Equal(t, 4, evenCount)
 	}
-	require.Equal(t, 5, evenCount)
+
+	{
+		allResults, err := mmm.layers[2].QueryEvents(ctx, nostr.Filter{
+			Kinds: []int{1},
+		})
+		require.NoError(t, err)
+		allCount := 0
+		for range allResults {
+			allCount++
+		}
+		require.Equal(t, 10, allCount)
+	}
+
+	// save events directly to layers regardless of timestamp
+	{
+		oddEvent := &nostr.Event{
+			CreatedAt: baseTime + 100, // even timestamp
+			Kind:      1,
+			Content:   "forced odd",
+		}
+		oddEvent.Sign(sk)
+		err = mmm.layers[0].SaveEvent(ctx, oddEvent) // save even timestamp to odd layer
+		require.NoError(t, err)
+
+		// it is added to the odd il
+		oddResults, err := mmm.layers[0].QueryEvents(ctx, nostr.Filter{
+			Kinds: []int{1},
+		})
+		require.NoError(t, err)
+		oddCount := 0
+		for range oddResults {
+			oddCount++
+		}
+		require.Equal(t, 5, oddCount)
+
+		// it doesn't affect the event il
+		evenResults, err := mmm.layers[1].QueryEvents(ctx, nostr.Filter{
+			Kinds: []int{1},
+		})
+		require.NoError(t, err)
+		evenCount := 0
+		for range evenResults {
+			evenCount++
+		}
+		require.Equal(t, 4, evenCount)
+	}
+
+	// test replaceable events
+	for _, layer := range mmm.layers {
+		replaceable := &nostr.Event{
+			CreatedAt: baseTime + 0,
+			Kind:      0,
+			Content:   fmt.Sprintf("first"),
+		}
+		replaceable.Sign(sk)
+		err := layer.ReplaceEvent(ctx, replaceable)
+		require.NoError(t, err)
+	}
+
+	// replace events alternating between layers
+	for i := range mmm.layers {
+		content := fmt.Sprintf("last %d", i)
+
+		newEvt := &nostr.Event{
+			CreatedAt: baseTime + 1000,
+			Kind:      0,
+			Content:   content,
+		}
+		newEvt.Sign(sk)
+
+		layer := mmm.layers[i]
+		err = layer.ReplaceEvent(ctx, newEvt)
+		require.NoError(t, err)
+
+		// verify replacement in the layer that did it
+		results, err := layer.QueryEvents(ctx, nostr.Filter{
+			Kinds: []int{0},
+		})
+		require.NoError(t, err)
+
+		count := 0
+		for evt := range results {
+			require.Equal(t, content, evt.Content)
+			count++
+		}
+		require.Equal(t, 1, count)
+
+		// verify other layers still have old version
+		for j := 0; j < 3; j++ {
+			if mmm.layers[j] == layer {
+				continue
+			}
+			results, err := mmm.layers[j].QueryEvents(ctx, nostr.Filter{
+				Kinds: []int{0},
+			})
+			require.NoError(t, err)
+
+			count := 0
+			for evt := range results {
+				if i < j {
+					require.Equal(t, "first", evt.Content)
+				} else {
+					require.Equal(t, evt.Content, fmt.Sprintf("last %d", j))
+				}
+				count++
+			}
+
+			require.Equal(t, 1, count, "%d/%d", i, j)
+		}
+	}
 }
