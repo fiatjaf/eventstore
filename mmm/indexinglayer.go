@@ -7,8 +7,11 @@ import (
 	"os"
 
 	"github.com/PowerDNS/lmdb-go/lmdb"
+	"github.com/fiatjaf/eventstore"
 	"github.com/nbd-wtf/go-nostr"
 )
+
+var _ eventstore.Store = (*IndexingLayer)(nil)
 
 type IndexingLayer struct {
 	name string // this is set automatically internally

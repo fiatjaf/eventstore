@@ -16,11 +16,8 @@ import (
 	"github.com/nbd-wtf/go-nostr"
 )
 
-func (b *MultiMmapManager) Store(ctx context.Context, evt *nostr.Event) (stored bool, err error) {
-	// sanity checking
-	if evt.CreatedAt > maxuint32 || evt.Kind > maxuint16 {
-		return false, fmt.Errorf("event with values out of expected boundaries")
-	}
+func (b *MultiMmapManager) StoreGlobal(ctx context.Context, evt *nostr.Event) (stored bool, err error) {
+	someoneWantsIt := false
 
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
@@ -28,30 +25,97 @@ func (b *MultiMmapManager) Store(ctx context.Context, evt *nostr.Event) (stored 
 	defer runtime.UnlockOSThread()
 
 	// do this just so it's cleaner, we're already locking the thread and the mutex anyway
-	txn, err := b.lmdbEnv.BeginTxn(nil, 0)
+	mmmtxn, err := b.lmdbEnv.BeginTxn(nil, 0)
 	if err != nil {
 		return false, fmt.Errorf("failed to begin global transaction: %w", err)
 	}
-	txn.RawRead = true
+	mmmtxn.RawRead = true
 
-	// this ensures we'll commit all transactions or rollback them
-	txnsToClose := make([]*lmdb.Txn, 1, 1+len(b.layers))
-	txnsToClose[0] = txn
-	defer func() {
-		if err != nil {
-			for _, txn := range txnsToClose {
-				txn.Abort()
+	iltxns := make([]*lmdb.Txn, 0, len(b.layers))
+	ils := make([]*IndexingLayer, 0, len(b.layers))
+
+	// ask if any of the indexing layers want this
+	for _, il := range b.layers {
+		if il.ShouldIndex(ctx, evt) {
+			someoneWantsIt = true
+
+			iltxn, err := il.lmdbEnv.BeginTxn(nil, 0)
+			if err != nil {
+				mmmtxn.Abort()
+				for _, txn := range iltxns {
+					txn.Abort()
+				}
+				return false, fmt.Errorf("failed to start txn on %s: %w", il.name, err)
 			}
-		} else {
-			for _, txn := range txnsToClose {
-				txn.Commit()
-			}
+
+			ils = append(ils, il)
+			iltxns = append(iltxns, iltxn)
 		}
-	}()
+	}
+
+	if !someoneWantsIt {
+		// no one wants it
+		mmmtxn.Abort()
+		return false, fmt.Errorf("not wanted")
+	}
+
+	stored, err = b.storeOn(mmmtxn, ils, iltxns, evt)
+	if stored {
+		mmmtxn.Commit()
+		for _, txn := range iltxns {
+			txn.Commit()
+		}
+	} else {
+		mmmtxn.Abort()
+		for _, txn := range iltxns {
+			txn.Abort()
+		}
+	}
+
+	return stored, err
+}
+
+func (il *IndexingLayer) SaveEvent(ctx context.Context, evt *nostr.Event) error {
+	il.mmmm.mutex.Lock()
+	defer il.mmmm.mutex.Unlock()
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	// do this just so it's cleaner, we're already locking the thread and the mutex anyway
+	mmmtxn, err := il.mmmm.lmdbEnv.BeginTxn(nil, 0)
+	if err != nil {
+		return fmt.Errorf("failed to begin global transaction: %w", err)
+	}
+	mmmtxn.RawRead = true
+
+	iltxn, err := il.lmdbEnv.BeginTxn(nil, 0)
+	if err != nil {
+		mmmtxn.Abort()
+		return fmt.Errorf("failed to start txn on %s: %w", il.name, err)
+	}
+
+	if _, err := il.mmmm.storeOn(mmmtxn, []*IndexingLayer{il}, []*lmdb.Txn{iltxn}, evt); err != nil {
+		mmmtxn.Abort()
+		if iltxn != nil {
+			iltxn.Abort()
+		}
+		return err
+	}
+
+	mmmtxn.Commit()
+	iltxn.Commit()
+	return nil
+}
+
+func (b *MultiMmapManager) storeOn(mmmtxn *lmdb.Txn, ils []*IndexingLayer, iltxns []*lmdb.Txn, evt *nostr.Event) (stored bool, err error) {
+	// sanity checking
+	if evt.CreatedAt > maxuint32 || evt.Kind > maxuint16 {
+		return false, fmt.Errorf("event with values out of expected boundaries")
+	}
 
 	// check if we already have this id
 	idPrefix8, _ := hex.DecodeString(evt.ID[0 : 8*2])
-	val, err := txn.Get(b.indexId, idPrefix8)
+	val, err := mmmtxn.Get(b.indexId, idPrefix8)
 	if err == nil {
 		// we found the event, which means it is already indexed by every layer who wanted to index it
 		return false, nil
@@ -69,31 +133,17 @@ func (b *MultiMmapManager) Store(ctx context.Context, evt *nostr.Event) (stored 
 	// these are the bytes we must fill in with the position once we have it
 	reservedResults := make([][]byte, 0, len(b.layers))
 
-	// ask if any of the indexing layers want this
-	someoneWantsIt := false
-	for _, il := range b.layers {
-		if il.ShouldIndex(ctx, evt) {
-			// start a txn here and close it at the end only as we will have to use the valReserve arrays later
-			iltxn, err := il.lmdbEnv.BeginTxn(nil, 0)
+	for i, il := range ils {
+		iltxn := iltxns[i]
+		// start a txn here and close it at the end only as we will have to use the valReserve arrays later
+		for k := range il.getIndexKeysForEvent(evt) {
+			valReserve, err := iltxn.PutReserve(k.dbi, k.key, 12, 0)
 			if err != nil {
-				return false, fmt.Errorf("failed to start txn on %s: %w", il.name, err)
+				b.Logger.Warn().Str("name", il.name).Msg("failed to index event on layer")
 			}
-			defer iltxn.Commit()
-
-			for k := range il.getIndexKeysForEvent(evt) {
-				valReserve, err := iltxn.PutReserve(k.dbi, k.key, 12, 0)
-				if err != nil {
-					b.Logger.Warn().Str("name", il.name).Msg("failed to index event on layer")
-				}
-				reservedResults = append(reservedResults, valReserve)
-			}
-			val = binary.BigEndian.AppendUint16(val, il.id)
-			someoneWantsIt = true
+			reservedResults = append(reservedResults, valReserve)
 		}
-	}
-	if !someoneWantsIt {
-		// no one wants it
-		return false, fmt.Errorf("not wanted")
+		val = binary.BigEndian.AppendUint16(val, il.id)
 	}
 
 	// find a suitable place for this to be stored in
@@ -118,7 +168,7 @@ func (b *MultiMmapManager) Store(ctx context.Context, evt *nostr.Event) (stored 
 				})
 			}
 
-			if err := b.saveFreeRanges(txn); err != nil {
+			if err := b.saveFreeRanges(mmmtxn); err != nil {
 				return false, fmt.Errorf("failed to save modified free ranges: %w", err)
 			}
 
@@ -153,7 +203,7 @@ func (b *MultiMmapManager) Store(ctx context.Context, evt *nostr.Event) (stored 
 	}
 
 	// store the id index with the refcounts
-	if err := txn.Put(b.indexId, idPrefix8, val, 0); err != nil {
+	if err := mmmtxn.Put(b.indexId, idPrefix8, val, 0); err != nil {
 		panic(fmt.Errorf("failed to store %x by id: %w", idPrefix8, err))
 	}
 
