@@ -2,11 +2,14 @@ package mmm
 
 import (
 	"context"
+	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/PowerDNS/lmdb-go/lmdb"
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
@@ -262,4 +265,124 @@ func TestMultiLayerIndexing(t *testing.T) {
 			require.Equal(t, 1, count, "%d/%d", i, j)
 		}
 	}
+}
+
+func TestLayerReferenceTracking(t *testing.T) {
+	// Create a temporary directory for the test
+	tmpDir, err := os.MkdirTemp("", "mmm-test-*")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
+
+	logger := zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr})
+
+	// initialize MMM with three layers
+	mmm := &MultiMmapManager{
+		Dir:    tmpDir,
+		Logger: &logger,
+		LayerBuilder: func(name string, b *MultiMmapManager) *IndexingLayer {
+			return &IndexingLayer{
+				dbpath:      filepath.Join(tmpDir, name),
+				mmmm:        b,
+				MaxLimit:    100,
+				ShouldIndex: func(ctx context.Context, evt *nostr.Event) bool { return true },
+			}
+		},
+	}
+
+	err = mmm.Init()
+	require.NoError(t, err)
+	defer mmm.Close()
+
+	// create three layers
+	err = mmm.CreateLayer("layer1")
+	require.NoError(t, err)
+	err = mmm.CreateLayer("layer2")
+	require.NoError(t, err)
+	err = mmm.CreateLayer("layer3")
+	require.NoError(t, err)
+	err = mmm.CreateLayer("layer4")
+	require.NoError(t, err)
+
+	// create test events
+	ctx := context.Background()
+	sk := "945e01e37662430162121b804d3645a86d97df9d256917d86735d0eb219393eb"
+	evt1 := &nostr.Event{
+		CreatedAt: 1000,
+		Kind:      1,
+		Tags:      nostr.Tags{},
+		Content:   "event 1",
+	}
+	evt1.Sign(sk)
+
+	evt2 := &nostr.Event{
+		CreatedAt: 2000,
+		Kind:      1,
+		Tags:      nostr.Tags{},
+		Content:   "event 2",
+	}
+	evt2.Sign(sk)
+
+	// save evt1 to layer1
+	err = mmm.layers[0].SaveEvent(ctx, evt1)
+	require.NoError(t, err)
+
+	// save evt1 to layer2
+	err = mmm.layers[1].SaveEvent(ctx, evt1)
+	require.NoError(t, err)
+
+	// save evt1 to layer4
+	err = mmm.layers[0].SaveEvent(ctx, evt1)
+	require.NoError(t, err)
+
+	// delete evt1 from layer1
+	err = mmm.layers[0].DeleteEvent(ctx, evt1)
+	require.NoError(t, err)
+
+	// save evt2 to layer3
+	err = mmm.layers[2].SaveEvent(ctx, evt2)
+	require.NoError(t, err)
+
+	// save evt2 to layer4
+	err = mmm.layers[3].SaveEvent(ctx, evt2)
+	require.NoError(t, err)
+
+	// save evt2 to layer3 again
+	err = mmm.layers[2].SaveEvent(ctx, evt2)
+	require.NoError(t, err)
+
+	// delete evt1 from layer4
+	err = mmm.layers[3].DeleteEvent(ctx, evt1)
+	require.NoError(t, err)
+
+	// verify the state of the indexId database
+	err = mmm.lmdbEnv.View(func(txn *lmdb.Txn) error {
+		cursor, err := txn.OpenCursor(mmm.indexId)
+		if err != nil {
+			return err
+		}
+		defer cursor.Close()
+
+		count := 0
+		for k, v, err := cursor.Get(nil, nil, lmdb.First); err == nil; k, v, err = cursor.Get(nil, nil, lmdb.Next) {
+			count++
+			if hex.EncodeToString(k) == evt1.ID[:16] {
+				// evt1 should only reference layer2
+				require.Equal(t, 14, len(v), "evt1 should have one layer reference")
+				layerRef := binary.BigEndian.Uint16(v[12:14])
+				require.Equal(t, mmm.layers[1].id, layerRef, "evt1 should reference layer2")
+			} else if hex.EncodeToString(k) == evt2.ID[:16] {
+				// evt2 should references to layer3 and layer4
+				require.Equal(t, 16, len(v), "evt2 should have two layer references")
+				layer3Ref := binary.BigEndian.Uint16(v[12:14])
+				require.Equal(t, mmm.layers[2].id, layer3Ref, "evt2 should reference layer3")
+				layer4Ref := binary.BigEndian.Uint16(v[14:16])
+				require.Equal(t, mmm.layers[3].id, layer4Ref, "evt2 should reference layer4")
+			} else {
+				t.Errorf("unexpected event in indexId: %x", k)
+			}
+		}
+		require.Equal(t, 2, count, "should have exactly two events in indexId")
+		return nil
+	})
+	require.NoError(t, err)
 }
