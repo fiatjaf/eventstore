@@ -38,9 +38,8 @@ func (b *SQLite3Backend) ReplaceEvent(ctx context.Context, evt *nostr.Event) err
 	for rows.Next() {
 		var previous nostr.Event
 		var timestamp int64
-		err := rows.Scan(&previous.ID, &previous.PubKey, &timestamp,
-			&previous.Kind, &previous.Tags, &previous.Content, &previous.Sig)
-		if err != nil {
+		if err := rows.Scan(&previous.ID, &previous.PubKey, &timestamp,
+			&previous.Kind, &previous.Tags, &previous.Content, &previous.Sig); err != nil {
 			return fmt.Errorf("failed to scan older event row: %w", err)
 		}
 		previous.CreatedAt = nostr.Timestamp(timestamp)
