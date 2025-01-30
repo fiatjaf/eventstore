@@ -15,6 +15,7 @@ func (b *SQLite3Backend) ReplaceEvent(ctx context.Context, evt *nostr.Event) err
 	if err != nil {
 		return fmt.Errorf("fail to start txn: %w", err)
 	}
+	defer txn.Rollback()
 
 	filter := nostr.Filter{Limit: 1, Kinds: []int{evt.Kind}, Authors: []string{evt.PubKey}}
 	if nostr.IsAddressableKind(evt.Kind) {
