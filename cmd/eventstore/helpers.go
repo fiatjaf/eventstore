@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/fiatjaf/cli/v3"
+	"github.com/urfave/cli/v3"
 )
 
 const (

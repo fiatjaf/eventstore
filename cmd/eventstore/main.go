@@ -9,7 +9,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/fiatjaf/cli/v3"
 	"github.com/fiatjaf/eventstore"
 	"github.com/fiatjaf/eventstore/badger"
 	"github.com/fiatjaf/eventstore/elasticsearch"
@@ -20,6 +19,7 @@ import (
 	"github.com/fiatjaf/eventstore/sqlite3"
 	"github.com/fiatjaf/eventstore/strfry"
 	"github.com/nbd-wtf/go-nostr"
+	"github.com/urfave/cli/v3"
 )
 
 var db eventstore.Store
@@ -41,7 +41,7 @@ var app = &cli.Command{
 			Usage:   "store type ('sqlite', 'lmdb', 'badger', 'postgres', 'mysql', 'elasticsearch')",
 		},
 	},
-	Before: func(ctx context.Context, c *cli.Command) error {
+	Before: func(ctx context.Context, c *cli.Command) (context.Context, error) {
 		path := c.String("store")
 		typ := c.String("type")
 		if typ != "" {
@@ -66,10 +66,10 @@ var app = &cli.Command{
 				dbname, err := detect(path)
 				if err != nil {
 					if os.IsNotExist(err) {
-						return fmt.Errorf(
+						return ctx, fmt.Errorf(
 							"'%s' does not exist, to create a store there specify the --type argument", path)
 					}
-					return fmt.Errorf("failed to detect store type: %w", err)
+					return ctx, fmt.Errorf("failed to detect store type: %w", err)
 				}
 				typ = dbname
 			}
@@ -134,12 +134,16 @@ var app = &cli.Command{
 				}
 			}()
 		case "":
-			return fmt.Errorf("couldn't determine store type, you can use --type to specify it manually")
+			return ctx, fmt.Errorf("couldn't determine store type, you can use --type to specify it manually")
 		default:
-			return fmt.Errorf("'%s' store type is not supported by this CLI", typ)
+			return ctx, fmt.Errorf("'%s' store type is not supported by this CLI", typ)
 		}
 
-		return db.Init()
+		if err := db.Init(); err != nil {
+			return ctx, err
+		}
+
+		return ctx, nil
 	},
 	Commands: []*cli.Command{
 		queryOrSave,

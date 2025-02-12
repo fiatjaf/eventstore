@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/fiatjaf/cli/v3"
+	"github.com/urfave/cli/v3"
 	"github.com/nbd-wtf/go-nostr"
 )
 
