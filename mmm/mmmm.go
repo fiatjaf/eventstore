@@ -21,12 +21,10 @@ type mmap []byte
 func (_ mmap) String() string { return "<memory-mapped file>" }
 
 type MultiMmapManager struct {
-	Dir          string
-	Logger       *zerolog.Logger
-	LayerBuilder func(name string, b *MultiMmapManager) *IndexingLayer
+	Dir    string
+	Logger *zerolog.Logger
 
 	layers []*IndexingLayer
-	lastId uint16
 
 	mmapfPath string
 	mmapf     mmap
@@ -54,7 +52,7 @@ func (b *MultiMmapManager) Init() error {
 	// create directory if it doesn't exist
 	dbpath := filepath.Join(b.Dir, "mmmm")
 	if err := os.MkdirAll(dbpath, 0755); err != nil {
-		return err
+		return fmt.Errorf("failed to create directory %s: %w", dbpath, err)
 	}
 
 	// open a huge mmapped file
@@ -134,48 +132,6 @@ func (b *MultiMmapManager) Init() error {
 			logOp.Msg("loaded free ranges")
 		}
 
-		// initialize layers from what we have stored
-		{
-			logOp := b.Logger.Debug()
-
-			cursor, err := txn.OpenCursor(b.knownLayers)
-			if err != nil && !lmdb.IsNotFound(err) {
-				return fmt.Errorf("on layers: %w", err)
-			}
-
-			b.layers = make([]*IndexingLayer, 0, 20)
-			for k, v, err := cursor.Get(nil, nil, lmdb.First); err == nil; k, v, err = cursor.Get(nil, nil, lmdb.Next) {
-				name := string(k)
-				id := binary.BigEndian.Uint16(v)
-				logOp.Str("name", name).Msg("loaded layer")
-
-				il := b.LayerBuilder(name, b)
-				if il == nil {
-					logOp.Str("name", name).Msg("layer was deleted")
-					if err := txn.Del(b.knownLayers, k, nil); err != nil {
-						return fmt.Errorf("on delete '%s': %w", name, err)
-					}
-
-					// remove all events that were only referenced by this layer
-					if err := b.removeAllReferencesFromLayer(txn, binary.BigEndian.Uint16(v)); err != nil {
-						return fmt.Errorf("on removing references: %w", err)
-					}
-
-					continue
-				}
-
-				il.name = name
-				il.id = id
-
-				if b.lastId < id {
-					b.lastId = id
-				}
-
-				il.Init()
-				b.layers = append(b.layers, il)
-			}
-		}
-
 		return nil
 	}); err != nil {
 		return fmt.Errorf("failed to open and load db data: %w", err)
@@ -184,27 +140,40 @@ func (b *MultiMmapManager) Init() error {
 	return nil
 }
 
-func (b *MultiMmapManager) CreateLayer(name string) error {
-	il := b.LayerBuilder(name, b)
-	if il == nil {
-		return fmt.Errorf("tried to create layer %s, but got a nil", name)
-	}
-
+func (b *MultiMmapManager) EnsureLayer(name string, il *IndexingLayer) error {
+	il.mmmm = b
 	il.name = name
 
-	b.lastId++
-	if b.lastId == 0 {
-		return fmt.Errorf("reached end of available layer ids, mmm needs a refactor to be able to reuse ids or something like that")
-	}
-	il.id = b.lastId
-
-	il.Init()
-
 	err := b.lmdbEnv.Update(func(txn *lmdb.Txn) error {
-		if err := il.runThroughEvents(txn); err != nil {
+		txn.RawRead = true
+
+		nameb := []byte(name)
+		if idv, err := txn.Get(b.knownLayers, nameb); lmdb.IsNotFound(err) {
+			if id, err := b.getNextAvailableLayerId(txn); err != nil {
+				return fmt.Errorf("failed to reserve a layer id for %s: %w", name, err)
+			} else {
+				il.id = id
+			}
+
+			if err := il.Init(); err != nil {
+				return fmt.Errorf("failed to init new layer %s: %w", name, err)
+			}
+
+			if err := il.runThroughEvents(txn); err != nil {
+				return fmt.Errorf("failed to run %s through events: %w", name, err)
+			}
+			return txn.Put(b.knownLayers, []byte(name), binary.LittleEndian.AppendUint16(nil, il.id), 0)
+		} else if err == nil {
+			il.id = binary.LittleEndian.Uint16(idv)
+
+			if err := il.Init(); err != nil {
+				return fmt.Errorf("failed to init old layer %s: %w", name, err)
+			}
+
+			return nil
+		} else {
 			return err
 		}
-		return txn.Put(b.knownLayers, []byte(name), nil, 0)
 	})
 	if err != nil {
 		return err
@@ -212,6 +181,37 @@ func (b *MultiMmapManager) CreateLayer(name string) error {
 
 	b.layers = append(b.layers, il)
 	return nil
+}
+
+// getNextAvailableLayerId iterates through all existing layers to find a vacant id
+func (b *MultiMmapManager) getNextAvailableLayerId(txn *lmdb.Txn) (uint16, error) {
+	cursor, err := txn.OpenCursor(b.knownLayers)
+	if err != nil {
+		return 0, fmt.Errorf("failed to open cursor: %w", err)
+	}
+
+	used := [1 << 16]bool{}
+	_, val, err := cursor.Get(nil, nil, lmdb.First)
+	for err == nil {
+		// something was found
+		used[binary.LittleEndian.Uint16(val)] = true
+		// next
+		_, val, err = cursor.Get(nil, nil, lmdb.Next)
+	}
+	if !lmdb.IsNotFound(err) {
+		// a real error
+		return 0, err
+	}
+
+	// loop exited, get the first available
+	var id uint16
+	for num, isUsed := range used {
+		if !isUsed {
+			id = uint16(num)
+			break
+		}
+	}
+	return id, nil
 }
 
 func (b *MultiMmapManager) Close() {

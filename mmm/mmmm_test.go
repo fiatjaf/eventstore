@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/PowerDNS/lmdb-go/lmdb"
@@ -17,9 +16,8 @@ import (
 
 func TestMultiLayerIndexing(t *testing.T) {
 	// Create a temporary directory for the test
-	tmpDir, err := os.MkdirTemp("", "mmm-test-*")
-	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	tmpDir := "/tmp/eventstore-mmm-test"
+	os.RemoveAll(tmpDir)
 
 	logger := zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr})
 
@@ -30,36 +28,33 @@ func TestMultiLayerIndexing(t *testing.T) {
 	mmm := &MultiMmapManager{
 		Dir:    tmpDir,
 		Logger: &logger,
-		LayerBuilder: func(name string, b *MultiMmapManager) *IndexingLayer {
-			return &IndexingLayer{
-				dbpath:   filepath.Join(tmpDir, name),
-				mmmm:     b,
-				MaxLimit: 100,
-				ShouldIndex: func(ctx context.Context, evt *nostr.Event) bool {
-					switch name {
-					case "odd":
-						return evt.CreatedAt%2 == 1
-					case "even":
-						return evt.CreatedAt%2 == 0
-					case "all":
-						return true
-					}
-					return false
-				},
-			}
-		},
 	}
 
-	err = mmm.Init()
+	err := mmm.Init()
 	require.NoError(t, err)
 	defer mmm.Close()
 
 	// create layers
-	err = mmm.CreateLayer("odd")
+	err = mmm.EnsureLayer("odd", &IndexingLayer{
+		MaxLimit: 100,
+		ShouldIndex: func(ctx context.Context, evt *nostr.Event) bool {
+			return evt.CreatedAt%2 == 1
+		},
+	})
 	require.NoError(t, err)
-	err = mmm.CreateLayer("even")
+	err = mmm.EnsureLayer("even", &IndexingLayer{
+		MaxLimit: 100,
+		ShouldIndex: func(ctx context.Context, evt *nostr.Event) bool {
+			return evt.CreatedAt%2 == 0
+		},
+	})
 	require.NoError(t, err)
-	err = mmm.CreateLayer("all")
+	err = mmm.EnsureLayer("all", &IndexingLayer{
+		MaxLimit: 100,
+		ShouldIndex: func(ctx context.Context, evt *nostr.Event) bool {
+			return true
+		},
+	})
 	require.NoError(t, err)
 
 	// create test events
@@ -242,7 +237,7 @@ func TestMultiLayerIndexing(t *testing.T) {
 		}
 		require.Equal(t, 1, count)
 
-		// verify other layers still have old version
+		// verify other layers still have the old version
 		for j := 0; j < 3; j++ {
 			if mmm.layers[j] == layer {
 				continue
@@ -279,14 +274,6 @@ func TestLayerReferenceTracking(t *testing.T) {
 	mmm := &MultiMmapManager{
 		Dir:    tmpDir,
 		Logger: &logger,
-		LayerBuilder: func(name string, b *MultiMmapManager) *IndexingLayer {
-			return &IndexingLayer{
-				dbpath:      filepath.Join(tmpDir, name),
-				mmmm:        b,
-				MaxLimit:    100,
-				ShouldIndex: func(ctx context.Context, evt *nostr.Event) bool { return true },
-			}
-		},
 	}
 
 	err = mmm.Init()
@@ -294,13 +281,25 @@ func TestLayerReferenceTracking(t *testing.T) {
 	defer mmm.Close()
 
 	// create three layers
-	err = mmm.CreateLayer("layer1")
+	err = mmm.EnsureLayer("layer1", &IndexingLayer{
+		MaxLimit:    100,
+		ShouldIndex: func(ctx context.Context, evt *nostr.Event) bool { return true },
+	})
 	require.NoError(t, err)
-	err = mmm.CreateLayer("layer2")
+	err = mmm.EnsureLayer("layer2", &IndexingLayer{
+		MaxLimit:    100,
+		ShouldIndex: func(ctx context.Context, evt *nostr.Event) bool { return true },
+	})
 	require.NoError(t, err)
-	err = mmm.CreateLayer("layer3")
+	err = mmm.EnsureLayer("layer3", &IndexingLayer{
+		MaxLimit:    100,
+		ShouldIndex: func(ctx context.Context, evt *nostr.Event) bool { return true },
+	})
 	require.NoError(t, err)
-	err = mmm.CreateLayer("layer4")
+	err = mmm.EnsureLayer("layer4", &IndexingLayer{
+		MaxLimit:    100,
+		ShouldIndex: func(ctx context.Context, evt *nostr.Event) bool { return true },
+	})
 	require.NoError(t, err)
 
 	// create test events

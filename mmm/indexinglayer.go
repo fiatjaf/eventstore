@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/PowerDNS/lmdb-go/lmdb"
 	"github.com/fiatjaf/eventstore"
@@ -24,7 +25,6 @@ type IndexingLayer struct {
 	// this is stored in the knownLayers db as a value, and used to keep track of which layer owns each event
 	id uint16
 
-	dbpath  string
 	lmdbEnv *lmdb.Env
 
 	indexCreatedAt  lmdb.DBI
@@ -40,6 +40,8 @@ type IndexingLayer struct {
 const multiIndexCreationFlags uint = lmdb.Create | lmdb.DupSort
 
 func (il *IndexingLayer) Init() error {
+	path := filepath.Join(il.mmmm.Dir, il.name)
+
 	if il.MaxLimit == 0 {
 		il.MaxLimit = 500
 	}
@@ -55,11 +57,11 @@ func (il *IndexingLayer) Init() error {
 	env.SetMapSize(1 << 38) // ~273GB
 
 	// create directory if it doesn't exist and open it
-	if err := os.MkdirAll(il.dbpath, 0755); err != nil {
+	if err := os.MkdirAll(path, 0755); err != nil {
 		return err
 	}
 
-	err = env.Open(il.dbpath, lmdb.NoTLS, 0644)
+	err = env.Open(path, lmdb.NoTLS, 0644)
 	if err != nil {
 		return err
 	}
