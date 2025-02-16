@@ -107,7 +107,12 @@ func (il *IndexingLayer) SaveEvent(ctx context.Context, evt *nostr.Event) error 
 	return nil
 }
 
-func (b *MultiMmapManager) storeOn(mmmtxn *lmdb.Txn, ils []*IndexingLayer, iltxns []*lmdb.Txn, evt *nostr.Event) (stored bool, err error) {
+func (b *MultiMmapManager) storeOn(
+	mmmtxn *lmdb.Txn,
+	ils []*IndexingLayer,
+	iltxns []*lmdb.Txn,
+	evt *nostr.Event,
+) (stored bool, err error) {
 	// sanity checking
 	if evt.CreatedAt > maxuint32 || evt.Kind > maxuint16 {
 		return false, fmt.Errorf("event with values out of expected boundaries")

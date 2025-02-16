@@ -141,6 +141,9 @@ func (b *MultiMmapManager) Init() error {
 }
 
 func (b *MultiMmapManager) EnsureLayer(name string, il *IndexingLayer) error {
+	b.mutex.Lock()
+	defer b.mutex.Unlock()
+
 	il.mmmm = b
 	il.name = name
 
@@ -181,6 +184,51 @@ func (b *MultiMmapManager) EnsureLayer(name string, il *IndexingLayer) error {
 
 	b.layers = append(b.layers, il)
 	return nil
+}
+
+func (b *MultiMmapManager) DropLayer(name string) error {
+	b.mutex.Lock()
+	defer b.mutex.Unlock()
+
+	// get layer reference
+	idx := slices.IndexFunc(b.layers, func(il *IndexingLayer) bool { return il.name == name })
+	if idx == -1 {
+		return fmt.Errorf("layer '%s' doesn't exist", name)
+	}
+	il := b.layers[idx]
+
+	// remove layer references from global indexes
+	err := b.lmdbEnv.Update(func(txn *lmdb.Txn) error {
+		txn.RawRead = true
+		return b.removeAllReferencesFromLayer(txn, il.id)
+	})
+	if err != nil {
+		return err
+	}
+
+	// delete everything (the indexes) from this layer db actually
+	err = il.lmdbEnv.Update(func(txn *lmdb.Txn) error {
+		for _, dbi := range []lmdb.DBI{
+			il.indexCreatedAt,
+			il.indexKind,
+			il.indexPubkey,
+			il.indexPubkeyKind,
+			il.indexTag,
+			il.indexTag32,
+			il.indexTagAddr,
+			il.indexPTagKind,
+		} {
+			if err := txn.Drop(dbi, true); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	return il.lmdbEnv.Close()
 }
 
 // getNextAvailableLayerId iterates through all existing layers to find a vacant id
