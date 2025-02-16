@@ -40,6 +40,10 @@ type MultiMmapManager struct {
 	mutex sync.Mutex
 }
 
+func (b *MultiMmapManager) String() string {
+	return fmt.Sprintf("<MultiMmapManager on %s with %d layers @ %v>", b.Dir, len(b.layers), unsafe.Pointer(b))
+}
+
 const (
 	MMAP_INFINITE_SIZE = 1 << 40
 	maxuint16          = 65535
@@ -199,7 +203,6 @@ func (b *MultiMmapManager) DropLayer(name string) error {
 
 	// remove layer references from global indexes
 	err := b.lmdbEnv.Update(func(txn *lmdb.Txn) error {
-		txn.RawRead = true
 		return b.removeAllReferencesFromLayer(txn, il.id)
 	})
 	if err != nil {
@@ -229,6 +232,62 @@ func (b *MultiMmapManager) DropLayer(name string) error {
 	}
 
 	return il.lmdbEnv.Close()
+}
+
+func (b *MultiMmapManager) removeAllReferencesFromLayer(txn *lmdb.Txn, layerId uint16) error {
+	cursor, err := txn.OpenCursor(b.indexId)
+	if err != nil {
+		return fmt.Errorf("when opening cursor on %v: %w", b.indexId, err)
+	}
+	defer cursor.Close()
+
+	for {
+		idPrefix8, val, err := cursor.Get(nil, nil, lmdb.Next)
+		if lmdb.IsNotFound(err) {
+			break
+		}
+		if err != nil {
+			return fmt.Errorf("when moving the cursor: %w", err)
+		}
+
+		var zeroRefs bool
+		var update bool
+
+		needle := binary.BigEndian.AppendUint16(nil, layerId)
+		for s := 12; s < len(val); s += 2 {
+			if slices.Equal(val[s:s+2], needle) {
+				// swap delete
+				copy(val[s:s+2], val[len(val)-2:])
+				val = val[0 : len(val)-2]
+
+				update = true
+
+				// we must erase this event if its references reach zero
+				zeroRefs = len(val) == 12
+
+				break
+			}
+		}
+
+		if zeroRefs {
+			posb := val[0:12]
+			pos := positionFromBytes(posb)
+
+			if err := b.purge(txn, idPrefix8, pos); err != nil {
+				return fmt.Errorf("failed to purge unreferenced event %x: %w", idPrefix8, err)
+			}
+		} else if update {
+			if err := txn.Put(b.indexId, idPrefix8, val, 0); err != nil {
+				return fmt.Errorf("failed to put updated index+refs: %w", err)
+			}
+		}
+	}
+
+	return nil
+}
+
+func (b *MultiMmapManager) loadEvent(pos position, eventReceiver *nostr.Event) error {
+	return betterbinary.Unmarshal(b.mmapf[pos.start:pos.start+uint64(pos.size)], eventReceiver)
 }
 
 // getNextAvailableLayerId iterates through all existing layers to find a vacant id
@@ -267,61 +326,4 @@ func (b *MultiMmapManager) Close() {
 	for _, il := range b.layers {
 		il.Close()
 	}
-}
-
-func (b *MultiMmapManager) Load(pos position, eventReceiver *nostr.Event) error {
-	return betterbinary.Unmarshal(b.mmapf[pos.start:pos.start+uint64(pos.size)], eventReceiver)
-}
-
-func (b *MultiMmapManager) String() string {
-	return fmt.Sprintf("<MultiMmapManager on %s with %d layers @ %v>", b.Dir, len(b.layers), unsafe.Pointer(b))
-}
-
-func (b *MultiMmapManager) removeAllReferencesFromLayer(txn *lmdb.Txn, layerId uint16) error {
-	cursor, err := txn.OpenCursor(b.indexId)
-	if err != nil {
-		return fmt.Errorf("when opening cursor on %v: %w", b.indexId, err)
-	}
-	defer cursor.Close()
-
-	for {
-		idPrefix8, val, err := cursor.Get(nil, nil, lmdb.Next)
-		if lmdb.IsNotFound(err) {
-			break
-		}
-		if err != nil {
-			return fmt.Errorf("when moving the cursor: %w", err)
-		}
-
-		var zeroRefs bool
-		var update bool
-
-		needle := binary.BigEndian.AppendUint16(nil, layerId)
-		for s := 12; s < len(val); s += 2 {
-			if slices.Equal(val[s:s+2], needle) {
-				val = slices.Delete(val, s, s+2)
-				update = true
-
-				// we must erase this event if its references reach zero
-				zeroRefs = len(val) == 12
-
-				break
-			}
-		}
-
-		if zeroRefs {
-			posb := val[0:12]
-			pos := positionFromBytes(posb)
-
-			if err := b.purge(txn, idPrefix8, pos); err != nil {
-				return fmt.Errorf("failed to purge unreferenced event %x: %w", idPrefix8, err)
-			}
-		} else if update {
-			if err := txn.Put(b.indexId, idPrefix8, val, 0); err != nil {
-				return fmt.Errorf("failed to put updated index+refs: %w", err)
-			}
-		}
-	}
-
-	return nil
 }

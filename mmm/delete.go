@@ -13,7 +13,6 @@ import (
 
 func (il *IndexingLayer) DeleteEvent(ctx context.Context, evt *nostr.Event) error {
 	return il.mmmm.lmdbEnv.Update(func(mmmtxn *lmdb.Txn) error {
-		mmmtxn.RawRead = true
 		return il.lmdbEnv.Update(func(iltxn *lmdb.Txn) error {
 			return il.delete(mmmtxn, iltxn, evt)
 		})

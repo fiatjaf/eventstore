@@ -142,7 +142,7 @@ func (il *IndexingLayer) runThroughEvents(txn *lmdb.Txn) error {
 		posb := val[0:12]
 		pos := positionFromBytes(posb)
 		evt := &nostr.Event{}
-		if err := b.Load(pos, evt); err != nil {
+		if err := b.loadEvent(pos, evt); err != nil {
 			return fmt.Errorf("when loading event from mmap: %w", err)
 		}
 

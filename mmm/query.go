@@ -30,7 +30,7 @@ func (b *MultiMmapManager) queryByIDs(_ context.Context, ch chan *nostr.Event, i
 			if err == nil {
 				pos := positionFromBytes(val[0:12])
 				evt := &nostr.Event{}
-				if err := b.Load(pos, evt); err == nil {
+				if err := b.loadEvent(pos, evt); err == nil {
 					ch <- evt
 				}
 			}
