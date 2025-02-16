@@ -147,15 +147,15 @@ func (b *MultiMmapManager) storeOn(
 		return false, nil
 	}
 
-	// find a suitable place for this to be stored in
+	// get event binary size
 	pos := position{
 		size: uint32(betterbinary.Measure(*evt)),
 	}
-
 	if pos.size >= 1<<16 {
 		return false, fmt.Errorf("event too large to store, max %d, got %d", 1<<16, pos.size)
 	}
 
+	// find a suitable place for this to be stored in
 	appendToMmap := true
 	for f, fr := range b.freeRanges {
 		if fr.size >= pos.size {

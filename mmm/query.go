@@ -15,10 +15,32 @@ import (
 	"github.com/nbd-wtf/go-nostr"
 )
 
-func (b *MultiMmapManager) queryByIDs(_ context.Context, ch chan *nostr.Event, ids []string) {
+// GetByID returns the event -- if found in this mmm -- and all the IndexingLayers it belongs to.
+func (b *MultiMmapManager) GetByID(id string) (*nostr.Event, IndexingLayers) {
+	events := make(chan *nostr.Event)
+	presence := make(chan []uint16)
+	b.queryByIDs(events, []string{id}, presence)
+	for evt := range events {
+		p := <-presence
+		present := make([]*IndexingLayer, len(p))
+		for i, id := range p {
+			present[i] = b.layers.ByID(id)
+		}
+		return evt, present
+	}
+	return nil, nil
+}
+
+// queryByIDs emits the events of the given id to the given channel if they exist anywhere in this mmm.
+// if presence is given it will also be used to emit slices of the ids of the IndexingLayers this event is stored in.
+// it closes the channels when it ends.
+func (b *MultiMmapManager) queryByIDs(ch chan *nostr.Event, ids []string, presence chan []uint16) {
 	go b.lmdbEnv.View(func(txn *lmdb.Txn) error {
 		txn.RawRead = true
 		defer close(ch)
+		if presence != nil {
+			defer close(presence)
+		}
 
 		for _, id := range ids {
 			if len(id) != 64 {
@@ -30,8 +52,17 @@ func (b *MultiMmapManager) queryByIDs(_ context.Context, ch chan *nostr.Event, i
 			if err == nil {
 				pos := positionFromBytes(val[0:12])
 				evt := &nostr.Event{}
-				if err := b.loadEvent(pos, evt); err == nil {
-					ch <- evt
+				if err := b.loadEvent(pos, evt); err != nil {
+					panic(fmt.Errorf("failed to decode event from %v: %w", pos, err))
+				}
+				ch <- evt
+
+				if presence != nil {
+					layers := make([]uint16, 0, (len(val)-12)/2)
+					for s := 12; s < len(val); s += 2 {
+						layers = append(layers, binary.BigEndian.Uint16(val[s:s+2]))
+					}
+					presence <- layers
 				}
 			}
 		}
@@ -44,7 +75,7 @@ func (il *IndexingLayer) QueryEvents(ctx context.Context, filter nostr.Filter) (
 	ch := make(chan *nostr.Event)
 
 	if len(filter.IDs) > 0 {
-		go il.mmmm.queryByIDs(ctx, ch, filter.IDs)
+		il.mmmm.queryByIDs(ch, filter.IDs, nil)
 		return ch, nil
 	}
 

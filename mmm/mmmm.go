@@ -24,7 +24,7 @@ type MultiMmapManager struct {
 	Dir    string
 	Logger *zerolog.Logger
 
-	layers []*IndexingLayer
+	layers IndexingLayers
 
 	mmapfPath string
 	mmapf     mmap
@@ -169,9 +169,9 @@ func (b *MultiMmapManager) EnsureLayer(name string, il *IndexingLayer) error {
 			if err := il.runThroughEvents(txn); err != nil {
 				return fmt.Errorf("failed to run %s through events: %w", name, err)
 			}
-			return txn.Put(b.knownLayers, []byte(name), binary.LittleEndian.AppendUint16(nil, il.id), 0)
+			return txn.Put(b.knownLayers, []byte(name), binary.BigEndian.AppendUint16(nil, il.id), 0)
 		} else if err == nil {
-			il.id = binary.LittleEndian.Uint16(idv)
+			il.id = binary.BigEndian.Uint16(idv)
 
 			if err := il.Init(); err != nil {
 				return fmt.Errorf("failed to init old layer %s: %w", name, err)
@@ -201,9 +201,13 @@ func (b *MultiMmapManager) DropLayer(name string) error {
 	}
 	il := b.layers[idx]
 
-	// remove layer references from global indexes
+	// remove layer references
 	err := b.lmdbEnv.Update(func(txn *lmdb.Txn) error {
-		return b.removeAllReferencesFromLayer(txn, il.id)
+		if err := b.removeAllReferencesFromLayer(txn, il.id); err != nil {
+			return err
+		}
+
+		return txn.Del(b.knownLayers, []byte(il.name), nil)
 	})
 	if err != nil {
 		return err
@@ -301,7 +305,7 @@ func (b *MultiMmapManager) getNextAvailableLayerId(txn *lmdb.Txn) (uint16, error
 	_, val, err := cursor.Get(nil, nil, lmdb.First)
 	for err == nil {
 		// something was found
-		used[binary.LittleEndian.Uint16(val)] = true
+		used[binary.BigEndian.Uint16(val)] = true
 		// next
 		_, val, err = cursor.Get(nil, nil, lmdb.Next)
 	}
