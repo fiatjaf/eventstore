@@ -151,6 +151,11 @@ func (b *MultiMmapManager) storeOn(
 	pos := position{
 		size: uint32(betterbinary.Measure(*evt)),
 	}
+
+	if pos.size >= 1<<16 {
+		return false, fmt.Errorf("event too large to store, max %d, got %d", 1<<16, pos.size)
+	}
+
 	appendToMmap := true
 	for f, fr := range b.freeRanges {
 		if fr.size >= pos.size {
@@ -188,7 +193,9 @@ func (b *MultiMmapManager) storeOn(
 	}
 
 	// write to the mmap
-	betterbinary.Marshal(*evt, b.mmapf[pos.start:])
+	if err := betterbinary.Marshal(*evt, b.mmapf[pos.start:]); err != nil {
+		return false, fmt.Errorf("error marshaling to %d: %w", pos.start, err)
+	}
 
 	// prepare value to be saved in the id index (if we didn't have it already)
 	// val: [posb][layerIdRefs...]
