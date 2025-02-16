@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/urfave/cli/v3"
@@ -16,6 +17,12 @@ const (
 )
 
 func detect(dir string) (string, error) {
+	mayBeMMM := false
+	if n := strings.Index(dir, "/"); n > 0 {
+		mayBeMMM = true
+		dir = filepath.Dir(dir)
+	}
+
 	f, err := os.Stat(dir)
 	if err != nil {
 		return "", err
@@ -39,6 +46,19 @@ func detect(dir string) (string, error) {
 		return "", err
 	}
 
+	if mayBeMMM {
+		for _, entry := range entries {
+			if entry.Name() == "mmmm" {
+				if entries, err := os.ReadDir(filepath.Join(dir, "mmmm")); err == nil {
+					for _, e := range entries {
+						if strings.HasSuffix(e.Name(), ".mdb") {
+							return "mmm", nil
+						}
+					}
+				}
+			}
+		}
+	}
 	for _, entry := range entries {
 		if strings.HasSuffix(entry.Name(), ".mdb") {
 			return "lmdb", nil

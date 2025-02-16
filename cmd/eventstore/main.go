@@ -7,18 +7,21 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/fiatjaf/eventstore"
 	"github.com/fiatjaf/eventstore/badger"
 	"github.com/fiatjaf/eventstore/elasticsearch"
 	"github.com/fiatjaf/eventstore/lmdb"
+	"github.com/fiatjaf/eventstore/mmm"
 	"github.com/fiatjaf/eventstore/mysql"
 	"github.com/fiatjaf/eventstore/postgresql"
 	"github.com/fiatjaf/eventstore/slicestore"
 	"github.com/fiatjaf/eventstore/sqlite3"
 	"github.com/fiatjaf/eventstore/strfry"
 	"github.com/nbd-wtf/go-nostr"
+	"github.com/rs/zerolog"
 	"github.com/urfave/cli/v3"
 )
 
@@ -38,11 +41,11 @@ var app = &cli.Command{
 		&cli.StringFlag{
 			Name:    "type",
 			Aliases: []string{"t"},
-			Usage:   "store type ('sqlite', 'lmdb', 'badger', 'postgres', 'mysql', 'elasticsearch')",
+			Usage:   "store type ('sqlite', 'lmdb', 'badger', 'postgres', 'mysql', 'elasticsearch', 'mmm')",
 		},
 	},
 	Before: func(ctx context.Context, c *cli.Command) (context.Context, error) {
-		path := c.String("store")
+		path := strings.Trim(c.String("store"), "/")
 		typ := c.String("type")
 		if typ != "" {
 			// bypass automatic detection
@@ -89,6 +92,24 @@ var app = &cli.Command{
 			db = &lmdb.LMDBBackend{Path: path, MaxLimit: 1_000_000}
 		case "badger":
 			db = &badger.BadgerBackend{Path: path, MaxLimit: 1_000_000}
+		case "mmm":
+			logger := zerolog.New(zerolog.NewConsoleWriter(func(w *zerolog.ConsoleWriter) {
+				w.Out = os.Stderr
+			}))
+			mmmm := mmm.MultiMmapManager{
+				Dir:    filepath.Dir(path),
+				Logger: &logger,
+			}
+			if err := mmmm.Init(); err != nil {
+				return ctx, err
+			}
+			il := &mmm.IndexingLayer{
+				ShouldIndex: func(ctx context.Context, e *nostr.Event) bool { return false },
+			}
+			if err := mmmm.EnsureLayer(filepath.Base(path), il); err != nil {
+				return ctx, err
+			}
+			db = il
 		case "postgres", "postgresql":
 			db = &postgresql.PostgresBackend{
 				DatabaseURL:       path,

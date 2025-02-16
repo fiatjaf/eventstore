@@ -15,7 +15,8 @@ import (
 var _ eventstore.Store = (*IndexingLayer)(nil)
 
 type IndexingLayer struct {
-	name string // this is set automatically internally
+	isInitialized bool
+	name          string // this is set automatically internally
 
 	ShouldIndex func(context.Context, *nostr.Event) bool
 	MaxLimit    int
@@ -37,9 +38,25 @@ type IndexingLayer struct {
 	indexPTagKind   lmdb.DBI
 }
 
+type IndexingLayers []*IndexingLayer
+
+func (ils IndexingLayers) ByID(ilid uint16) *IndexingLayer {
+	for _, il := range ils {
+		if il.id == ilid {
+			return il
+		}
+	}
+	return nil
+}
+
 const multiIndexCreationFlags uint = lmdb.Create | lmdb.DupSort
 
 func (il *IndexingLayer) Init() error {
+	if il.isInitialized {
+		return nil
+	}
+	il.isInitialized = true
+
 	path := filepath.Join(il.mmmm.Dir, il.name)
 
 	if il.MaxLimit == 0 {
