@@ -45,7 +45,8 @@ func (b *LMDBBackend) runMigrations() error {
 			}
 
 			if !hasAnyEntries {
-				b.setVersion(txn, 6)
+				b.setVersion(txn, 8)
+				version = 8
 				return nil
 			}
 		}
