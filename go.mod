@@ -6,7 +6,7 @@ toolchain go1.23.2
 
 require (
 	fiatjaf.com/lib v0.2.0
-	github.com/PowerDNS/lmdb-go v1.9.2
+	github.com/PowerDNS/lmdb-go v1.9.3
 	github.com/aquasecurity/esquery v0.2.0
 	github.com/blugelabs/bluge v0.2.2
 	github.com/dgraph-io/badger/v4 v4.5.0
