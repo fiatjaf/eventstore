@@ -48,7 +48,7 @@ func (b *MySQLBackend) Init() error {
 
 	for _, ddl := range ddls {
 		_, err := b.DB.Exec(ddl)
-		if err != nil && !strings.HasPrefix(err.Error(), `Duplicate key name`) {
+		if err != nil && !strings.Contains(err.Error(), `Duplicate key name`) {
 			return err
 		}
 	}
