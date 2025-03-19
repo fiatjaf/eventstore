@@ -163,7 +163,7 @@ func (il *IndexingLayer) runThroughEvents(txn *lmdb.Txn) error {
 			return fmt.Errorf("when loading event from mmap: %w", err)
 		}
 
-		if il.ShouldIndex(ctx, evt) {
+		if il.ShouldIndex != nil && il.ShouldIndex(ctx, evt) {
 			// add the current reference
 			val = binary.BigEndian.AppendUint16(val, il.id)
 

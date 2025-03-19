@@ -36,7 +36,7 @@ func (b *MultiMmapManager) StoreGlobal(ctx context.Context, evt *nostr.Event) (s
 
 	// ask if any of the indexing layers want this
 	for _, il := range b.layers {
-		if il.ShouldIndex(ctx, evt) {
+		if il.ShouldIndex != nil && il.ShouldIndex(ctx, evt) {
 			someoneWantsIt = true
 
 			iltxn, err := il.lmdbEnv.BeginTxn(nil, 0)
