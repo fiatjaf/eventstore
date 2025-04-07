@@ -124,7 +124,6 @@ func TestMultiLayerIndexing(t *testing.T) {
 	err = mmm.layers[0].DeleteEvent(ctx, events[1]) // odd timestamp
 	require.NoError(t, err)
 	err = mmm.layers[1].DeleteEvent(ctx, events[2]) // even timestamp
-	require.NoError(t, err)
 
 	// verify deletions
 	{

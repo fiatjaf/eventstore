@@ -223,8 +223,8 @@ func (il *IndexingLayer) query(txn *lmdb.Txn, filter nostr.Filter, limit int) ([
 				// decode the entire thing (TODO: do a conditional decode while also checking the extra tag)
 				event := &nostr.Event{}
 				if err := betterbinary.Unmarshal(bin, event); err != nil {
-					log.Printf("mmm: value read error (id %x) on query prefix %x sp %x dbi %d: %s\n", bin[0:32],
-						query.prefix, query.startingPoint, query.dbi, err)
+					log.Printf("mmm: value read error (id %x) on query prefix %x sp %x dbi %d: %s\n",
+						bin[0:32], query.prefix, query.startingPoint, query.dbi, err)
 					return nil, fmt.Errorf("event read error: %w", err)
 				}
 

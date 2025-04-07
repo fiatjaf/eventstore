@@ -16,7 +16,7 @@ var _ eventstore.Store = (*IndexingLayer)(nil)
 
 type IndexingLayer struct {
 	isInitialized bool
-	name          string // this is set automatically internally
+	name          string
 
 	ShouldIndex func(context.Context, *nostr.Event) bool
 	MaxLimit    int
@@ -133,6 +133,8 @@ func (il *IndexingLayer) Init() error {
 
 	return nil
 }
+
+func (il *IndexingLayer) Name() string { return il.name }
 
 func (il *IndexingLayer) runThroughEvents(txn *lmdb.Txn) error {
 	ctx := context.Background()

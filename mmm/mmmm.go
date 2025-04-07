@@ -130,7 +130,9 @@ func (b *MultiMmapManager) Init() error {
 			for f := range b.freeRanges {
 				pos := positionFromBytes(data[f*12 : (f+1)*12])
 				b.freeRanges[f] = pos
-				logOp = logOp.Uint32(fmt.Sprintf("%d", pos.start), pos.size)
+				if pos.size > 20 {
+					logOp = logOp.Uint32(fmt.Sprintf("%d", pos.start), pos.size)
+				}
 			}
 			slices.SortFunc(b.freeRanges, func(a, b position) int { return int(a.size - b.size) })
 			logOp.Msg("loaded free ranges")
