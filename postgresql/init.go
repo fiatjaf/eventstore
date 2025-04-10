@@ -18,19 +18,22 @@ const (
 var _ eventstore.Store = (*PostgresBackend)(nil)
 
 func (b *PostgresBackend) Init() error {
-    if b.DB == nil {
-        db, err := sqlx.Connect("postgres", b.DatabaseURL)
-        if err != nil {
-            return err
-        }
-    	b.DB = db
-    }
+	var err error
+	var db *sqlx.DB
+
+	if b.DB == nil {
+		db, err = sqlx.Connect("postgres", b.DatabaseURL)
+		if err != nil {
+			return err
+		}
+	}
 	// sqlx default is 0 (unlimited), while postgresql by default accepts up to 100 connections
-	b.DB.SetMaxOpenConns(80)
+	db.SetMaxOpenConns(80)
 
-	b.DB.Mapper = reflectx.NewMapperFunc("json", sqlx.NameMapper)
+	db.Mapper = reflectx.NewMapperFunc("json", sqlx.NameMapper)
+	b.DB = db
 
-	_, err := b.DB.Exec(`
+	_, err = b.DB.Exec(`
 CREATE OR REPLACE FUNCTION tags_to_tagvalues(jsonb) RETURNS text[]
     AS 'SELECT array_agg(t->>1) FROM (SELECT jsonb_array_elements($1) AS t)s WHERE length(t->>0) = 1;'
     LANGUAGE SQL
