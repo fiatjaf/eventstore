@@ -26,7 +26,7 @@ func (b *PostgresBackend) Init() error {
 		if err != nil {
 			return err
 		}
-    	b.DB = db
+        b.DB = db
 	}
 	// sqlx default is 0 (unlimited), while postgresql by default accepts up to 100 connections
 	b.DB.SetMaxOpenConns(80)
