@@ -18,12 +18,15 @@ const (
 var _ eventstore.Store = (*PostgresBackend)(nil)
 
 func (b *PostgresBackend) Init() error {
-    if b.DB == nil {
-        db, err := sqlx.Connect("postgres", b.DatabaseURL)
-        if err != nil {
-            return err
-        }
-    }
+	var err error
+	var db *sqlx.DB
+
+	if b.DB == nil {
+		db, err = sqlx.Connect("postgres", b.DatabaseURL)
+		if err != nil {
+			return err
+		}
+	}
 	// sqlx default is 0 (unlimited), while postgresql by default accepts up to 100 connections
 	db.SetMaxOpenConns(80)
 
