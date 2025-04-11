@@ -188,6 +188,8 @@ func (b *LMDBBackend) countEventsHLLCached(filter nostr.Filter) (int64, *hyperlo
 		hex.Decode(cacheKey[2:2+8], []byte(filter.Tags["p"][0][0:8*2]))
 	case 7:
 		hex.Decode(cacheKey[2:2+8], []byte(filter.Tags["e"][0][0:8*2]))
+	case 1111:
+		hex.Decode(cacheKey[2:2+8], []byte(filter.Tags["E"][0][0:8*2]))
 	}
 
 	var count int64
