@@ -36,7 +36,7 @@ func (b *LMDBBackend) SaveEvent(ctx context.Context, evt *nostr.Event) error {
 
 		// check if we already have this id
 		id, _ := hex.DecodeString(evt.ID)
-		_, err := txn.Get(b.indexId, id)
+		_, err := txn.Get(b.indexId, id[0:8])
 		if operr, ok := err.(*lmdb.OpError); ok && operr.Errno != lmdb.NotFound {
 			// we will only proceed if we get a NotFound
 			return eventstore.ErrDupEvent
