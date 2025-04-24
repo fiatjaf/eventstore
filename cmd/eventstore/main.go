@@ -11,6 +11,7 @@ import (
 
 	"github.com/fiatjaf/eventstore"
 	"github.com/fiatjaf/eventstore/badger"
+	"github.com/fiatjaf/eventstore/dynamodb"
 	"github.com/fiatjaf/eventstore/elasticsearch"
 	"github.com/fiatjaf/eventstore/lmdb"
 	"github.com/fiatjaf/eventstore/mysql"
@@ -38,7 +39,7 @@ var app = &cli.Command{
 		&cli.StringFlag{
 			Name:    "type",
 			Aliases: []string{"t"},
-			Usage:   "store type ('sqlite', 'lmdb', 'badger', 'postgres', 'mysql', 'elasticsearch', 'mmm')",
+			Usage:   "store type ('sqlite', 'lmdb', 'badger', 'postgres', 'mysql', 'elasticsearch', 'mmm', 'dynamodb')",
 		},
 	},
 	Before: func(ctx context.Context, c *cli.Command) (context.Context, error) {
@@ -116,6 +117,10 @@ var app = &cli.Command{
 			db = &elasticsearch.ElasticsearchStorage{URL: path}
 		case "strfry":
 			db = &strfry.StrfryBackend{ConfigPath: path}
+		case "dynamodb":
+			db = &dynamodb.DynamoDBBackend{
+				DatabaseURL: path,
+			}
 		case "file":
 			db = &slicestore.SliceStore{}
 
