@@ -93,13 +93,13 @@ func (il *IndexingLayer) getIndexKeysForEvent(evt *nostr.Event) iter.Seq[key] {
 			}
 
 			// get key prefix (with full length) and offset where to write the created_at
-			dbi, k, offset := il.getTagIndexPrefix(tag[1])
+			dbi, k, offset := il.getTagIndexPrefix(tag[0], tag[1])
 			binary.BigEndian.PutUint32(k[offset:], uint32(evt.CreatedAt))
 			if !yield(key{dbi: dbi, key: k}) {
 				return
 			}
 
-			// now the p-tag+kind+date
+			// now the p-tag+kind+date (keep special p-tag index unchanged)
 			if dbi == il.indexTag32 && tag[0] == "p" {
 				k := make([]byte, 8+2+4)
 				hex.Decode(k[0:8], []byte(tag[1][0:8*2]))
@@ -123,43 +123,49 @@ func (il *IndexingLayer) getIndexKeysForEvent(evt *nostr.Event) iter.Seq[key] {
 	}
 }
 
-func (il *IndexingLayer) getTagIndexPrefix(tagValue string) (lmdb.DBI, []byte, int) {
+func (il *IndexingLayer) getTagIndexPrefix(tagName string, tagValue string) (lmdb.DBI, []byte, int) {
 	var k []byte   // the key with full length for created_at and idx at the end, but not filled with these
 	var offset int // the offset -- i.e. where the prefix ends and the created_at and idx would start
 	var dbi lmdb.DBI
 
+	letterPrefix := byte(int(tagName[0]) % 256)
+
 	// if it's 32 bytes as hex, save it as bytes
 	if len(tagValue) == 64 {
-		// but we actually only use the first 8 bytes
-		k = make([]byte, 8+4)
-		if _, err := hex.Decode(k[0:8], []byte(tagValue[0:8*2])); err == nil {
-			offset = 8
+		// but we actually only use the first 8 bytes, with tag name prefix
+		k = make([]byte, 1+8+4)
+		if _, err := hex.Decode(k[1:1+8], []byte(tagValue[0:8*2])); err == nil {
+			k[0] = letterPrefix
+			offset = 1 + 8
 			dbi = il.indexTag32
-			return dbi, k[0 : 8+4], offset
+			return dbi, k[0 : 1+8+4], offset
 		}
 	}
 
-	// if it looks like an "a" tag, index it in this special format
+	// if it looks like an "a" tag, index it in this special format (no tag name prefix for special indexes)
 	spl := strings.Split(tagValue, ":")
 	if len(spl) == 3 && len(spl[1]) == 64 {
-		k = make([]byte, 2+8+30)
-		if _, err := hex.Decode(k[2:2+8], []byte(tagValue[0:8*2])); err == nil {
+		k = make([]byte, 1+2+8+30)
+		if _, err := hex.Decode(k[1+2:1+2+8], []byte(tagValue[0:8*2])); err == nil {
 			if kind, err := strconv.ParseUint(spl[0], 10, 16); err == nil {
-				k[0] = byte(kind >> 8)
-				k[1] = byte(kind)
+				k[0] = letterPrefix
+				k[1] = byte(kind >> 8)
+				k[2] = byte(kind)
 				// limit "d" identifier to 30 bytes (so we don't have to grow our byte slice)
-				n := copy(k[2+8:2+8+30], spl[2])
-				offset = 2 + 8 + n
+				n := copy(k[1+2+8:1+2+8+30], spl[2])
+				offset = 1 + 2 + 8 + n
+				dbi = il.indexTagAddr
 				return dbi, k[0 : offset+4], offset
 			}
 		}
 	}
 
-	// index whatever else as utf-8, but limit it to 40 bytes
-	k = make([]byte, 40+4)
-	n := copy(k[0:40], tagValue)
-	offset = n
+	// index whatever else as utf-8, but limit it to 40 bytes, with tag name prefix
+	k = make([]byte, 1+40+4)
+	k[0] = letterPrefix
+	n := copy(k[1:1+40], tagValue)
+	offset = 1 + n
 	dbi = il.indexTag
 
-	return dbi, k[0 : n+4], offset
+	return dbi, k[0 : 1+n+4], offset
 }

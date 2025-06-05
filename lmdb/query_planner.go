@@ -123,7 +123,7 @@ func (b *LMDBBackend) prepareQueries(filter nostr.Filter) (
 			queries = make([]query, len(tagValues))
 			for i, value := range tagValues {
 				// get key prefix (with full length) and offset where to write the created_at
-				dbi, k, offset := b.getTagIndexPrefix(value)
+				dbi, k, offset := b.getTagIndexPrefix(tagKey, value)
 				// remove the last parts part to get just the prefix we want here
 				prefix := k[0:offset]
 				queries[i] = query{i: i, dbi: dbi, prefix: prefix, keySize: len(prefix) + 4, timestampSize: 4}

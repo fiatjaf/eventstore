@@ -108,7 +108,7 @@ func (b *LMDBBackend) getIndexKeysForEvent(evt *nostr.Event) iter.Seq[key] {
 			}
 
 			// get key prefix (with full length) and offset where to write the created_at
-			dbi, k, offset := b.getTagIndexPrefix(tag[1])
+			dbi, k, offset := b.getTagIndexPrefix(tag[0], tag[1])
 			binary.BigEndian.PutUint32(k[offset:], uint32(evt.CreatedAt))
 			if !yield(key{dbi: dbi, key: k}) {
 				return
@@ -138,47 +138,53 @@ func (b *LMDBBackend) getIndexKeysForEvent(evt *nostr.Event) iter.Seq[key] {
 	}
 }
 
-func (b *LMDBBackend) getTagIndexPrefix(tagValue string) (lmdb.DBI, []byte, int) {
+func (b *LMDBBackend) getTagIndexPrefix(tagName string, tagValue string) (lmdb.DBI, []byte, int) {
 	var k []byte   // the key with full length for created_at and idx at the end, but not filled with these
 	var offset int // the offset -- i.e. where the prefix ends and the created_at and idx would start
 	var dbi lmdb.DBI
 
+	letterPrefix := byte(int(tagName[0]) % 256)
+
 	// if it's 32 bytes as hex, save it as bytes
 	if len(tagValue) == 64 {
-		// but we actually only use the first 8 bytes
-		k = make([]byte, 8+4)
-		if _, err := hex.Decode(k[0:8], []byte(tagValue[0:8*2])); err == nil {
-			offset = 8
+		// but we actually only use the first 8 bytes, with tag name prefix
+		k = make([]byte, 1+8+4)
+		if _, err := hex.Decode(k[1:1+8], []byte(tagValue[0:8*2])); err == nil {
+			k[0] = letterPrefix
+			offset = 1 + 8
 			dbi = b.indexTag32
-			return dbi, k[0 : 8+4], offset
+			return dbi, k[0 : 1+8+4], offset
 		}
 	}
 
-	// if it looks like an "a" tag, index it in this special format
+	// if it looks like an "a" tag, index it in this special format (no tag name prefix for special indexes)
 	spl := strings.Split(tagValue, ":")
 	if len(spl) == 3 && len(spl[1]) == 64 {
-		k = make([]byte, 2+8+30)
-		if _, err := hex.Decode(k[2:2+8], []byte(tagValue[0:8*2])); err == nil {
+		k = make([]byte, 1+2+8+30)
+		if _, err := hex.Decode(k[1+2:1+2+8], []byte(tagValue[0:8*2])); err == nil {
 			if kind, err := strconv.ParseUint(spl[0], 10, 16); err == nil {
-				k[0] = byte(kind >> 8)
-				k[1] = byte(kind)
+				k[0] = byte(letterPrefix)
+				k[1] = byte(kind >> 8)
+				k[2] = byte(kind)
 				// limit "d" identifier to 30 bytes (so we don't have to grow our byte slice)
-				n := copy(k[2+8:2+8+30], spl[2])
-				offset = 2 + 8 + n
+				n := copy(k[1+2+8:1+2+8+30], spl[2])
+				offset = 1 + 2 + 8 + n
+				dbi = b.indexTagAddr
 				return dbi, k[0 : offset+4], offset
 			}
 		}
 	}
 
-	// index whatever else as a md5 hash of the contents
+	// index whatever else as a md5 hash of the contents with tag name prefix
 	h := md5.New()
 	h.Write([]byte(tagValue))
-	k = make([]byte, 0, 16+4)
+	k = make([]byte, 1, 1+16+4)
+	k[0] = letterPrefix
 	k = h.Sum(k)
-	offset = 16
+	offset = 1 + 16
 	dbi = b.indexTag
 
-	return dbi, k[0 : 16+4], offset
+	return dbi, k[0 : 1+16+4], offset
 }
 
 func (b *LMDBBackend) dbiName(dbi lmdb.DBI) string {
