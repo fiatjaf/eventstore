@@ -39,7 +39,7 @@ var app = &cli.Command{
 		&cli.StringFlag{
 			Name:    "type",
 			Aliases: []string{"t"},
-			Usage:   "store type ('sqlite', 'lmdb', 'badger', 'postgres', 'mysql', 'elasticsearch', 'mmm', 'dynamodb')",
+			Usage:   "store type ('sqlite', 'lmdb', 'badger', 'postgres', 'mysql', 'elasticsearch', 'dynamodb')",
 		},
 	},
 	Before: func(ctx context.Context, c *cli.Command) (context.Context, error) {
@@ -90,11 +90,6 @@ var app = &cli.Command{
 			db = &lmdb.LMDBBackend{Path: path, MaxLimit: 1_000_000}
 		case "badger":
 			db = &badger.BadgerBackend{Path: path, MaxLimit: 1_000_000}
-		case "mmm":
-			var err error
-			if db, err = doMmmInit(path); err != nil {
-				return ctx, err
-			}
 		case "postgres", "postgresql":
 			db = &postgresql.PostgresBackend{
 				DatabaseURL:       path,
