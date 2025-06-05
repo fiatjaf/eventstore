@@ -3,8 +3,11 @@ package badger
 import (
 	"encoding/binary"
 	"fmt"
+	"log"
 
 	"github.com/dgraph-io/badger/v4"
+	bin "github.com/fiatjaf/eventstore/internal/binary"
+	"github.com/nbd-wtf/go-nostr"
 )
 
 func (b *BadgerBackend) runMigrations() error {
@@ -26,33 +29,78 @@ func (b *BadgerBackend) runMigrations() error {
 		// do the migrations in increasing steps (there is no rollback)
 		//
 
-		// the 3 first migrations go to trash because on version 3 we need to export and import all the data anyway
-		if version < 3 {
-			// if there is any data in the relay we will stop and notify the user,
-			// otherwise we just set version to 3 and proceed
-			prefix := []byte{indexIdPrefix}
+		// the 4 first migrations go to trash because on version 4 we need to export and import all the data anyway
+		if version < 4 {
+			log.Println("[badger] migration 4: delete all indexes and recreate them")
+
+			// delete all index entries
+			prefixes := []byte{
+				indexIdPrefix,
+				indexCreatedAtPrefix,
+				indexKindPrefix,
+				indexPubkeyPrefix,
+				indexPubkeyKindPrefix,
+				indexTagPrefix,
+				indexTag32Prefix,
+				indexTagAddrPrefix,
+			}
+
+			for _, prefix := range prefixes {
+				it := txn.NewIterator(badger.IteratorOptions{
+					PrefetchValues: false,
+					Prefix:         []byte{prefix},
+				})
+				defer it.Close()
+
+				var keysToDelete [][]byte
+				for it.Seek([]byte{prefix}); it.ValidForPrefix([]byte{prefix}); it.Next() {
+					key := it.Item().Key()
+					keyCopy := make([]byte, len(key))
+					copy(keyCopy, key)
+					keysToDelete = append(keysToDelete, keyCopy)
+				}
+
+				for _, key := range keysToDelete {
+					if err := txn.Delete(key); err != nil {
+						return fmt.Errorf("failed to delete index key %x: %w", key, err)
+					}
+				}
+			}
+
+			// iterate through all events and recreate indexes
 			it := txn.NewIterator(badger.IteratorOptions{
 				PrefetchValues: true,
-				PrefetchSize:   100,
-				Prefix:         prefix,
+				Prefix:         []byte{rawEventStorePrefix},
 			})
 			defer it.Close()
 
-			hasAnyEntries := false
-			for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
-				hasAnyEntries = true
-				break
+			for it.Seek([]byte{rawEventStorePrefix}); it.ValidForPrefix([]byte{rawEventStorePrefix}); it.Next() {
+				item := it.Item()
+				idx := item.Key()
+
+				err := item.Value(func(val []byte) error {
+					evt := &nostr.Event{}
+					if err := bin.Unmarshal(val, evt); err != nil {
+						return fmt.Errorf("error decoding event %x on migration 4: %w", idx, err)
+					}
+
+					for key := range b.getIndexKeysForEvent(evt, idx[1:]) {
+						if err := txn.Set(key, nil); err != nil {
+							return fmt.Errorf("failed to save index for event %s on migration 4: %w", evt.ID, err)
+						}
+					}
+
+					return nil
+				})
+				if err != nil {
+					return err
+				}
 			}
 
-			if hasAnyEntries {
-				return fmt.Errorf("your database is at version %d, but in order to migrate up to version 3 you must manually export all the events and then import again: run an old version of this software, export the data, then delete the database files, run the new version, import the data back in.", version)
+			// bump version
+			if err := b.bumpVersion(txn, 4); err != nil {
+				return err
 			}
-
-			b.bumpVersion(txn, 3)
-		}
-
-		if version < 4 {
-			// ...
 		}
 
 		return nil

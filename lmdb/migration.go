@@ -29,34 +29,8 @@ func (b *LMDBBackend) runMigrations() error {
 		}
 
 		// all previous migrations are useless because we will just reindex everything
-		if version == 0 {
-			// if there is any data in the relay we will just set the version to the max without saying anything
-			cursor, err := txn.OpenCursor(b.rawEventStore)
-			if err != nil {
-				return fmt.Errorf("failed to open cursor in migration: %w", err)
-			}
-			defer cursor.Close()
-
-			hasAnyEntries := false
-			_, _, err = cursor.Get(nil, nil, lmdb.First)
-			for err == nil {
-				hasAnyEntries = true
-				break
-			}
-
-			if !hasAnyEntries {
-				b.setVersion(txn, 8)
-				version = 8
-				return nil
-			}
-		}
-
-		// do the migrations in increasing steps (there is no rollback)
-		//
-
-		// this is when we reindex everything
-		if version < 8 {
-			log.Println("[lmdb] migration 8: reindex everything")
+		if version < 9 {
+			log.Println("[lmdb] migration 9: reindex everything")
 
 			if err := txn.Drop(b.indexId, false); err != nil {
 				return err
@@ -88,7 +62,7 @@ func (b *LMDBBackend) runMigrations() error {
 
 			cursor, err := txn.OpenCursor(b.rawEventStore)
 			if err != nil {
-				return fmt.Errorf("failed to open cursor in migration 8: %w", err)
+				return fmt.Errorf("failed to open cursor in migration 9: %w", err)
 			}
 			defer cursor.Close()
 
@@ -117,7 +91,7 @@ func (b *LMDBBackend) runMigrations() error {
 
 				for key := range b.getIndexKeysForEvent(evt) {
 					if err := txn.Put(key.dbi, key.key, idx, 0); err != nil {
-						return fmt.Errorf("failed to save index %s for event %s (%v) on migration 8: %w",
+						return fmt.Errorf("failed to save index %s for event %s (%v) on migration 9: %w",
 							b.keyName(key), evt.ID, idx, err)
 					}
 				}
@@ -131,7 +105,7 @@ func (b *LMDBBackend) runMigrations() error {
 			}
 
 			// bump version
-			if err := b.setVersion(txn, 8); err != nil {
+			if err := b.setVersion(txn, 9); err != nil {
 				return err
 			}
 		}
