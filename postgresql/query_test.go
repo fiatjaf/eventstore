@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var defaultBackend = PostgresBackend{
+var defaultBackend = &PostgresBackend{
 	QueryLimit:        queryLimit,
 	QueryIDsLimit:     queryIDsLimit,
 	QueryAuthorsLimit: queryAuthorsLimit,
@@ -20,7 +20,7 @@ var defaultBackend = PostgresBackend{
 func TestQueryEventsSql(t *testing.T) {
 	tests := []struct {
 		name    string
-		backend PostgresBackend
+		backend *PostgresBackend
 		filter  nostr.Filter
 		query   string
 		params  []any
