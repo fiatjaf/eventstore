@@ -66,24 +66,8 @@ func (b *LMDBBackend) runMigrations() error {
 			}
 			defer cursor.Close()
 
-			seen := make(map[[32]byte]struct{})
-
 			idx, val, err := cursor.Get(nil, nil, lmdb.First)
 			for err == nil {
-				idp := *(*[32]byte)(val[0:32])
-				if _, isDup := seen[idp]; isDup {
-					// do not index, but delete this entry
-					if err := txn.Del(b.rawEventStore, idx, nil); err != nil {
-						return err
-					}
-
-					// next
-					idx, val, err = cursor.Get(nil, nil, lmdb.Next)
-					continue
-				}
-
-				seen[idp] = struct{}{}
-
 				evt := &nostr.Event{}
 				if err := bin.Unmarshal(val, evt); err != nil {
 					return fmt.Errorf("error decoding event %x on migration 5: %w", idx, err)
