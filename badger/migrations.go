@@ -29,9 +29,9 @@ func (b *BadgerBackend) runMigrations() error {
 		// do the migrations in increasing steps (there is no rollback)
 		//
 
-		// the 4 first migrations go to trash because on version 4 we need to export and import all the data anyway
-		if version < 4 {
-			log.Println("[badger] migration 4: delete all indexes and recreate them")
+		// the 5 first migrations go to trash because on version 5 we need to export and import all the data anyway
+		if version < 5 {
+			log.Println("[badger] migration 5: delete all indexes and recreate them")
 
 			// delete all index entries
 			prefixes := []byte{
@@ -81,12 +81,12 @@ func (b *BadgerBackend) runMigrations() error {
 				err := item.Value(func(val []byte) error {
 					evt := &nostr.Event{}
 					if err := bin.Unmarshal(val, evt); err != nil {
-						return fmt.Errorf("error decoding event %x on migration 4: %w", idx, err)
+						return fmt.Errorf("error decoding event %x on migration 5: %w", idx, err)
 					}
 
 					for key := range b.getIndexKeysForEvent(evt, idx[1:]) {
 						if err := txn.Set(key, nil); err != nil {
-							return fmt.Errorf("failed to save index for event %s on migration 4: %w", evt.ID, err)
+							return fmt.Errorf("failed to save index for event %s on migration 5: %w", evt.ID, err)
 						}
 					}
 
@@ -98,7 +98,7 @@ func (b *BadgerBackend) runMigrations() error {
 			}
 
 			// bump version
-			if err := b.bumpVersion(txn, 4); err != nil {
+			if err := b.bumpVersion(txn, 5); err != nil {
 				return err
 			}
 		}

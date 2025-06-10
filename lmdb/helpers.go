@@ -101,7 +101,9 @@ func (b *LMDBBackend) getIndexKeysForEvent(evt *nostr.Event) iter.Seq[key] {
 				// not indexable
 				continue
 			}
-			firstIndex := slices.IndexFunc(evt.Tags, func(t nostr.Tag) bool { return len(t) >= 2 && t[1] == tag[1] })
+			firstIndex := slices.IndexFunc(evt.Tags, func(t nostr.Tag) bool {
+				return len(t) >= 2 && t[0] == tag[0] && t[1] == tag[1]
+			})
 			if firstIndex != i {
 				// duplicate
 				continue
