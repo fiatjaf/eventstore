@@ -149,7 +149,7 @@ func (b *LMDBBackend) getTagIndexPrefix(tagName string, tagValue string) (lmdb.D
 
 	// if it's 32 bytes as hex, save it as bytes
 	if len(tagValue) == 64 {
-		// but we actually only use the first 8 bytes, with tag name prefix
+		// but we actually only use the first 8 bytes, with letter (tag name) prefix
 		k = make([]byte, 1+8+4)
 		if _, err := hex.Decode(k[1:1+8], []byte(tagValue[0:8*2])); err == nil {
 			k[0] = letterPrefix
@@ -159,10 +159,10 @@ func (b *LMDBBackend) getTagIndexPrefix(tagName string, tagValue string) (lmdb.D
 		}
 	}
 
-	// if it looks like an "a" tag, index it in this special format (no tag name prefix for special indexes)
+	// if it looks like an "a" tag, index it in this special format, with letter (tag name) prefix
 	spl := strings.Split(tagValue, ":")
 	if len(spl) == 3 && len(spl[1]) == 64 {
-		k = make([]byte, 1+2+8+30)
+		k = make([]byte, 1+2+8+30+4)
 		if _, err := hex.Decode(k[1+2:1+2+8], []byte(tagValue[0:8*2])); err == nil {
 			if kind, err := strconv.ParseUint(spl[0], 10, 16); err == nil {
 				k[0] = byte(letterPrefix)
@@ -177,7 +177,7 @@ func (b *LMDBBackend) getTagIndexPrefix(tagName string, tagValue string) (lmdb.D
 		}
 	}
 
-	// index whatever else as a md5 hash of the contents with tag name prefix
+	// index whatever else as a md5 hash of the contents, with letter (tag name) prefix
 	h := md5.New()
 	h.Write([]byte(tagValue))
 	k = make([]byte, 1, 1+16+4)
