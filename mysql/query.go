@@ -107,15 +107,19 @@ func (b MySQLBackend) queryEventsSql(filter nostr.Filter, doCount bool) (string,
 
 	totalTags := 0
 	// we use a very bad implementation in which we only check the tag values and ignore the tag names
-	for _, values := range filter.Tags {
+	for key, values := range filter.Tags {
 		if len(values) == 0 {
 			// any tag set to [] is wrong
 			return "", nil, nil
 		}
 
+		tag := `%["`+key+`"`
 		for _, tagValue := range values {
-			params = append(params, `%`+strings.ReplaceAll(tagValue, `%`, `\%`)+`%`)
+			tag = tag + `, "`+strings.ReplaceAll(tagValue, `%`, `\%`)+`"`
 		}
+		tag = tag + `]%`
+		params = append(params, tag)
+
 
 		// each separate tag key is an independent condition
 		conditions = append(conditions, `tags LIKE ?`)
