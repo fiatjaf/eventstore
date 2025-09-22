@@ -1,3 +1,11 @@
+<div>
+<p><b>This repository is in maintenance mode and adventurous programmers are encouraged to try <a href="https://pkg.go.dev/fiatjaf.com/nostr/eventstore"><code>fiatjaf.com/nostr/eventstore@master</code></a> instead.</b></p>
+
+<p>The new library integrates better with <code>fiatjaf.com/nostr/khatru</code> and the new <i>bbolt</i> and <i>LMDB</i> backends are better for streaming large numbers of events and migrating, making them more future-proof. But some backends were removed from the core library and are now encouraged to be ported and maintained as their own standalone modules.</p>
+</div>
+
+---
+
 # eventstore
 
 A collection of reusable database connectors, wrappers and schemas that store Nostr events and expose a simple Go interface:
