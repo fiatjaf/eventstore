@@ -30,3 +30,11 @@ type Store interface {
 type Counter interface {
 	CountEvents(context.Context, nostr.Filter) (int64, error)
 }
+
+// VanishPubkey is an optional interface that stores can implement to support NIP-62.
+// It deletes all events from a pubkey up to a given timestamp.
+type VanishPubkey interface {
+	// VanishPubkey deletes all events from the given pubkey created before or at the given timestamp.
+	// This includes all event kinds, and the deleted events should not be re-broadcastable.
+	VanishPubkey(ctx context.Context, pubkey string, until int64) error
+}
