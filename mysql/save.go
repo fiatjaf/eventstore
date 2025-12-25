@@ -54,7 +54,7 @@ func deleteBeforeSaveSql(evt *nostr.Event) (string, []any, bool) {
 		d := evt.Tags.GetFirst([]string{"d"})
 		if d != nil {
 			query = `DELETE FROM event WHERE pubkey = ? AND kind = ? AND tags LIKE ?`
-			params = []any{evt.PubKey, evt.Kind, d.Value()}
+			params = []any{evt.PubKey, evt.Kind, `["d": "`+d.Value()+`"]`}
 			shouldDelete = true
 		}
 	}
