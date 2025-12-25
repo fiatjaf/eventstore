@@ -141,8 +141,24 @@ func (b *PostgresBackend) queryEventsSql(filter nostr.Filter, doCount bool) (str
 		params = append(params, filter.Until)
 	}
 	if filter.Search != "" {
-		conditions = append(conditions, `content LIKE ?`)
-		params = append(params, `%`+strings.ReplaceAll(filter.Search, `%`, `\%`)+`%`)
+		config := b.FullTextSearchConfig
+		if config == "" {
+			config = "simple"
+		}
+		column := b.FullTextSearchColumn
+		if column == "" {
+			column = "content"
+		}
+		
+		var contentExpr string
+		if b.FullTextSearchMaxLength > 0 {
+			contentExpr = fmt.Sprintf("LEFT(%s, %d)", column, b.FullTextSearchMaxLength)
+		} else {
+			contentExpr = column
+		}
+		
+		conditions = append(conditions, `to_tsvector(?, `+contentExpr+`) @@ to_tsquery(?, ?)`)
+		params = append(params, config, config, filter.Search)
 	}
 
 	if len(conditions) == 0 {
