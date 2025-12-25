@@ -12,7 +12,7 @@ const (
 	queryIDsLimit     = 500
 	queryAuthorsLimit = 500
 	queryKindsLimit   = 10
-	queryTagsLimit    = 10
+	queryTagsLimit    = 100
 )
 
 var _ eventstore.Store = (*PostgresBackend)(nil)
