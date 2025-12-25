@@ -141,7 +141,7 @@ func TestQueryEventsSql(t *testing.T) {
 			backend: defaultBackend,
 			filter: nostr.Filter{
 				Tags: nostr.TagMap{
-					"#e": strSlice(11),
+					"#e": strSlice(101),
 				},
 			},
 			query:  "",
