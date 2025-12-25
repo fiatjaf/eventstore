@@ -65,6 +65,13 @@ func makePlaceHolders(n int) string {
 	return strings.TrimRight(strings.Repeat("?,", n), ",")
 }
 
+func escapeLikeString(s string) string {
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	s = strings.ReplaceAll(s, `"`, `\"`)
+	s = strings.ReplaceAll(s, `%`, `\%`)
+	return s
+}
+
 func (b MySQLBackend) queryEventsSql(filter nostr.Filter, doCount bool) (string, []any, error) {
 	conditions := make([]string, 0, 7)
 	params := make([]any, 0, 20)
@@ -113,9 +120,9 @@ func (b MySQLBackend) queryEventsSql(filter nostr.Filter, doCount bool) (string,
 			return "", nil, nil
 		}
 
-		tag := `%["`+key+`"`
+		tag := `%["` + escapeLikeString(key) + `"`
 		for _, tagValue := range values {
-			tag = tag + `, "`+strings.ReplaceAll(tagValue, `%`, `\%`)+`"`
+			tag = tag + `, "` + escapeLikeString(tagValue) + `"`
 		}
 		tag = tag + `]%`
 		params = append(params, tag)
@@ -141,7 +148,7 @@ func (b MySQLBackend) queryEventsSql(filter nostr.Filter, doCount bool) (string,
 	}
 	if filter.Search != "" {
 		conditions = append(conditions, `content LIKE ?`)
-		params = append(params, `%`+strings.ReplaceAll(filter.Search, `%`, `\%`)+`%`)
+		params = append(params, `%`+escapeLikeString(filter.Search)+`%`)
 	}
 
 	if len(conditions) == 0 {
