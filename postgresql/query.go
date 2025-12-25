@@ -145,12 +145,18 @@ func (b *PostgresBackend) queryEventsSql(filter nostr.Filter, doCount bool) (str
 		if config == "" {
 			config = "simple"
 		}
+		column := b.FullTextSearchColumn
+		if column == "" {
+			column = "content"
+		}
+		
 		var contentExpr string
 		if b.FullTextSearchMaxLength > 0 {
-			contentExpr = fmt.Sprintf("LEFT(content, %d)", b.FullTextSearchMaxLength)
+			contentExpr = fmt.Sprintf("LEFT(%s, %d)", column, b.FullTextSearchMaxLength)
 		} else {
-			contentExpr = "content"
+			contentExpr = column
 		}
+		
 		conditions = append(conditions, `to_tsvector(?, `+contentExpr+`) @@ to_tsquery(?, ?)`)
 		params = append(params, config, config, filter.Search)
 	}
