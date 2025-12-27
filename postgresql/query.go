@@ -1,6 +1,7 @@
 package postgresql
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"errors"
@@ -149,16 +150,23 @@ func (b *PostgresBackend) queryEventsSql(filter nostr.Filter, doCount bool) (str
 		if column == "" {
 			column = "content"
 		}
-		
+
 		var contentExpr string
 		if b.FullTextSearchMaxLength > 0 {
 			contentExpr = fmt.Sprintf("LEFT(%s, %d)", column, b.FullTextSearchMaxLength)
 		} else {
 			contentExpr = column
 		}
-		
+
 		conditions = append(conditions, `to_tsvector(?, `+contentExpr+`) @@ to_tsquery(?, ?)`)
-		params = append(params, config, config, filter.Search)
+		var buf bytes.Buffer
+		for n, word := range strings.Fields(filter.Search) {
+			if n > 0 {
+				fmt.Fprint(&buf, " & ")
+			}
+			fmt.Fprintf(&buf, "%q", word)
+		}
+		params = append(params, config, config, buf.String())
 	}
 
 	if len(conditions) == 0 {
