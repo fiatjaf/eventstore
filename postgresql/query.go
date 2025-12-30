@@ -161,7 +161,7 @@ func (b *PostgresBackend) queryEventsSql(filter nostr.Filter, doCount bool) (str
 
 		if b.FullTextSearchUseTrgm {
 			conditions = append(conditions, contentExpr+` ILIKE ?`)
-			params = append(params, "%"+escapeLikeString(filter.Search)+"%")
+			params = append(params, "%"+escapeLikeString(strings.ReplaceAll(filter.Search, " ", "%")+"%")
 		} else {
 			config := b.FullTextSearchConfig
 			if config == "" {
