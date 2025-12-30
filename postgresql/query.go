@@ -63,6 +63,13 @@ func makePlaceHolders(n int) string {
 	return strings.TrimRight(strings.Repeat("?,", n), ",")
 }
 
+func escapeLikeString(s string) string {
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	s = strings.ReplaceAll(s, `"`, `\"`)
+	s = strings.ReplaceAll(s, `%`, `\%`)
+	return s
+}
+
 var (
 	TooManyIDs       = errors.New("too many ids")
 	TooManyAuthors   = errors.New("too many authors")
@@ -141,15 +148,10 @@ func (b *PostgresBackend) queryEventsSql(filter nostr.Filter, doCount bool) (str
 		params = append(params, filter.Until)
 	}
 	if filter.Search != "" {
-		config := b.FullTextSearchConfig
-		if config == "" {
-			config = "simple"
-		}
 		column := b.FullTextSearchColumn
 		if column == "" {
 			column = "content"
 		}
-
 		var contentExpr string
 		if b.FullTextSearchMaxLength > 0 {
 			contentExpr = fmt.Sprintf("LEFT(%s, %d)", column, b.FullTextSearchMaxLength)
@@ -157,8 +159,18 @@ func (b *PostgresBackend) queryEventsSql(filter nostr.Filter, doCount bool) (str
 			contentExpr = column
 		}
 
-		conditions = append(conditions, `to_tsvector(?, `+contentExpr+`) @@ plainto_tsquery(?, ?)`)
-		params = append(params, config, config, filter.Search)
+		if b.FullTextSearchUseTrgm {
+			conditions = append(conditions, contentExpr+` ILIKE ?`)
+			params = append(params, "%"+escapeLikeString(filter.Search)+"%")
+		} else {
+			config := b.FullTextSearchConfig
+			if config == "" {
+				config = "simple"
+			}
+
+			conditions = append(conditions, `to_tsvector(?, `+contentExpr+`) @@ plainto_tsquery(?, ?)`)
+			params = append(params, config, config, filter.Search)
+		}
 	}
 
 	if len(conditions) == 0 {
