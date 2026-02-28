@@ -137,6 +137,21 @@ func TestQueryEventsSql(t *testing.T) {
 			err:    EmptyTagSet,
 		},
 		{
+			name:    "tag filter with key prefix",
+			backend: defaultBackend,
+			filter: nostr.Filter{
+				Tags: nostr.TagMap{
+					"#e": {"abc123"},
+				},
+			},
+			query: `SELECT id, pubkey, created_at, kind, tags, content, sig
+			FROM event
+			WHERE tagvalues && ARRAY[$1]
+			ORDER BY created_at DESC, id LIMIT $2`,
+			params: []any{"e:abc123", 100},
+			err:    nil,
+		},
+		{
 			name:    "too many tag values",
 			backend: defaultBackend,
 			filter: nostr.Filter{

@@ -112,7 +112,7 @@ func (b *PostgresBackend) queryEventsSql(filter nostr.Filter, doCount bool) (str
 	}
 
 	totalTags := 0
-	for _, values := range filter.Tags {
+	for tagKey, values := range filter.Tags {
 		if len(values) == 0 {
 			// any tag set to [] is wrong
 			return "", nil, EmptyTagSet
@@ -125,7 +125,7 @@ func (b *PostgresBackend) queryEventsSql(filter nostr.Filter, doCount bool) (str
 		}
 
 		for _, tagValue := range values {
-			params = append(params, tagValue)
+			params = append(params, strings.TrimPrefix(tagKey, "#")+":"+tagValue)
 		}
 
 		// each separate tag key is an independent condition
