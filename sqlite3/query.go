@@ -100,7 +100,7 @@ func (b SQLite3Backend) queryEventsSql(filter nostr.Filter, doCount bool) (strin
 	}
 
 	if len(filter.Kinds) > 0 {
-		if len(filter.Kinds) > 10 {
+		if len(filter.Kinds) > b.QueryKindsLimit {
 			// too many kinds, fail everything
 			return "", nil, TooManyKinds
 		}
