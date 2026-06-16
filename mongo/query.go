@@ -110,7 +110,7 @@ func (m *MongoDBBackend) queryEvents(filter nostr.Filter, doCount bool) (bson.D,
 	}
 
 	totalTags := 0
-	for _, values := range filter.Tags {
+	for key, values := range filter.Tags {
 		if len(values) == 0 {
 			// any tag set to [] is wrong
 			return nil, nil, ErrEmptyTagSet
@@ -120,7 +120,10 @@ func (m *MongoDBBackend) queryEvents(filter nostr.Filter, doCount bool) (bson.D,
 			tags = append(tags, tagValue)
 		}
 
-		conditions = append(conditions, bson.E{Key: "colors", Value: bson.M{"$in": tags}})
+		conditions = append(conditions, bson.E{Key: "tags", Value: bson.M{"$elemMatch": bson.M{
+			"0": key,
+			"1": bson.M{"$in": tags},
+		}}})
 
 		totalTags += len(values)
 		if totalTags > m.QueryTagsLimit {
