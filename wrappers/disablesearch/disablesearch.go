@@ -15,7 +15,9 @@ var _ eventstore.Store = (*Wrapper)(nil)
 
 func (w Wrapper) QueryEvents(ctx context.Context, filter nostr.Filter) (chan *nostr.Event, error) {
 	if filter.Search != "" {
-		return nil, nil
+		ch := make(chan *nostr.Event)
+		close(ch)
+		return ch, nil
 	}
 	return w.Store.QueryEvents(ctx, filter)
 }
