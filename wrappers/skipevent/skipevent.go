@@ -22,3 +22,11 @@ func (w Wrapper) SaveEvent(ctx context.Context, evt *nostr.Event) error {
 
 	return w.Store.SaveEvent(ctx, evt)
 }
+
+func (w Wrapper) ReplaceEvent(ctx context.Context, evt *nostr.Event) error {
+	if w.Skip(ctx, evt) {
+		return nil
+	}
+
+	return w.Store.ReplaceEvent(ctx, evt)
+}
