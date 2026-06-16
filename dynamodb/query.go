@@ -55,7 +55,7 @@ func buildBuilder(filter nostr.Filter) expression.Builder {
 		builder = builder.WithFilter(expression.Name("created_at").GreaterThanEqual(expression.Value(*filter.Since)))
 	}
 	if filter.Until != nil {
-		builder = builder.WithFilter(expression.Name("created_at").LessThan(expression.Value(*filter.Until)))
+		builder = builder.WithFilter(expression.Name("created_at").LessThanEqual(expression.Value(*filter.Until)))
 	}
 	if len(filter.Tags) > 0 {
 		tfilt := expression.ConditionBuilder{}
