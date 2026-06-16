@@ -10,7 +10,7 @@ import (
 	"github.com/nbd-wtf/go-nostr"
 )
 
-func (b MySQLBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch chan *nostr.Event, err error) {
+func (b *MySQLBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch chan *nostr.Event, err error) {
 	ch = make(chan *nostr.Event)
 
 	query, params, err := b.queryEventsSql(filter, false)
@@ -48,7 +48,7 @@ func (b MySQLBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch 
 	return ch, nil
 }
 
-func (b MySQLBackend) CountEvents(ctx context.Context, filter nostr.Filter) (int64, error) {
+func (b *MySQLBackend) CountEvents(ctx context.Context, filter nostr.Filter) (int64, error) {
 	query, params, err := b.queryEventsSql(filter, true)
 	if err != nil {
 		return 0, err
@@ -72,7 +72,7 @@ func escapeLikeString(s string) string {
 	return s
 }
 
-func (b MySQLBackend) queryEventsSql(filter nostr.Filter, doCount bool) (string, []any, error) {
+func (b *MySQLBackend) queryEventsSql(filter nostr.Filter, doCount bool) (string, []any, error) {
 	conditions := make([]string, 0, 7)
 	params := make([]any, 0, 20)
 
@@ -126,7 +126,6 @@ func (b MySQLBackend) queryEventsSql(filter nostr.Filter, doCount bool) (string,
 		}
 		tag = tag + `]%`
 		params = append(params, tag)
-
 
 		// each separate tag key is an independent condition
 		conditions = append(conditions, `tags LIKE ?`)
