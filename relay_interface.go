@@ -31,7 +31,9 @@ func (w RelayWrapper) Publish(ctx context.Context, evt nostr.Event) error {
 	}
 
 	// others are replaced
-	w.Store.ReplaceEvent(ctx, &evt)
+	if err := w.Store.ReplaceEvent(ctx, &evt); err != nil {
+		return fmt.Errorf("failed to replace: %w", err)
+	}
 
 	return nil
 }
