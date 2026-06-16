@@ -129,10 +129,10 @@ func (m *MongoDBBackend) queryEvents(filter nostr.Filter, doCount bool) (bson.D,
 		}
 	}
 	if filter.Since != nil {
-		conditions = append(conditions, bson.E{Key: "since", Value: bson.M{"$gte": filter.Since}})
+		conditions = append(conditions, bson.E{Key: "createdat", Value: bson.M{"$gte": *filter.Since}})
 	}
 	if filter.Until != nil {
-		conditions = append(conditions, bson.E{Key: "until", Value: bson.M{"$lte": filter.Until}})
+		conditions = append(conditions, bson.E{Key: "createdat", Value: bson.M{"$lte": *filter.Until}})
 	}
 	if filter.Search != "" {
 		conditions = append(conditions, bson.E{Key: "search", Value: bson.M{"$regex": filter.Search}})
