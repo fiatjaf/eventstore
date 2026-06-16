@@ -42,3 +42,30 @@ func TestQueryEventsUsesCreatedAtForTimeFilters(t *testing.T) {
 		Value: bson.M{"$lte": &until},
 	})
 }
+
+func TestQueryEventsUsesTagsFieldForTagFilters(t *testing.T) {
+	backend := &MongoDBBackend{
+		QueryLimit:        queryLimit,
+		QueryIDsLimit:     queryIDsLimit,
+		QueryAuthorsLimit: queryAuthorsLimit,
+		QueryKindsLimit:   queryKindsLimit,
+		QueryTagsLimit:    queryTagsLimit,
+	}
+
+	conditions, _, err := backend.queryEvents(nostr.Filter{
+		Tags: nostr.TagMap{"p": []string{"pubkey1", "pubkey2"}},
+	}, false)
+
+	require.NoError(t, err)
+	require.Contains(t, conditions, bson.E{
+		Key: "tags",
+		Value: bson.M{"$elemMatch": bson.M{
+			"0": "p",
+			"1": bson.M{"$in": bson.A{"pubkey1", "pubkey2"}},
+		}},
+	})
+	require.NotContains(t, conditions, bson.E{
+		Key:   "colors",
+		Value: bson.M{"$in": bson.A{"pubkey1", "pubkey2"}},
+	})
+}
