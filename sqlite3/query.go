@@ -11,7 +11,7 @@ import (
 	"github.com/nbd-wtf/go-nostr"
 )
 
-func (b SQLite3Backend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch chan *nostr.Event, err error) {
+func (b *SQLite3Backend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch chan *nostr.Event, err error) {
 	query, params, err := b.queryEventsSql(filter, false)
 	if err != nil {
 		return nil, err
@@ -46,7 +46,7 @@ func (b SQLite3Backend) QueryEvents(ctx context.Context, filter nostr.Filter) (c
 	return ch, nil
 }
 
-func (b SQLite3Backend) CountEvents(ctx context.Context, filter nostr.Filter) (int64, error) {
+func (b *SQLite3Backend) CountEvents(ctx context.Context, filter nostr.Filter) (int64, error) {
 	query, params, err := b.queryEventsSql(filter, true)
 	if err != nil {
 		return 0, err
@@ -71,7 +71,7 @@ func makePlaceHolders(n int) string {
 	return strings.TrimRight(strings.Repeat("?,", n), ",")
 }
 
-func (b SQLite3Backend) queryEventsSql(filter nostr.Filter, doCount bool) (string, []any, error) {
+func (b *SQLite3Backend) queryEventsSql(filter nostr.Filter, doCount bool) (string, []any, error) {
 	conditions := make([]string, 0, 7)
 	params := make([]any, 0, 20)
 
