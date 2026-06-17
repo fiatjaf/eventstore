@@ -31,6 +31,9 @@ type Counter interface {
 	CountEvents(context.Context, nostr.Filter) (int64, error)
 }
 
+// KindRequestToVanish is the NIP-62 "request to vanish" event kind.
+const KindRequestToVanish = 62
+
 // VanishPubkey is an optional interface that stores can implement to support NIP-62.
 // It deletes all events from a pubkey up to a given timestamp.
 type VanishPubkey interface {
