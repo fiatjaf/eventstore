@@ -10,81 +10,95 @@ import (
 	"github.com/nbd-wtf/go-nostr"
 )
 
-func (b *BadgerBackend) VanishPubkey(ctx context.Context, pubkey string, until int64) error {
-	return b.Update(func(txn *badger.Txn) error {
-		pubkeyPrefix8, _ := hex.DecodeString(pubkey[0 : 8*2])
-		prefix := make([]byte, 1+8)
-		prefix[0] = indexPubkeyPrefix
-		copy(prefix[1:], pubkeyPrefix8)
+// kindRequestToVanish is the NIP-62 "request to vanish" event kind. These
+// events are kept for bookkeeping instead of being deleted.
+const kindRequestToVanish = 62
 
-		opts := badger.IteratorOptions{
+func (b *BadgerBackend) VanishPubkey(ctx context.Context, pubkey string, until int64) error {
+	pubkeyPrefix8, err := hex.DecodeString(pubkey[0 : 8*2])
+	if err != nil {
+		return err
+	}
+	prefix := make([]byte, 1+8)
+	prefix[0] = indexPubkeyPrefix
+	copy(prefix[1:], pubkeyPrefix8)
+
+	// iterate over a consistent read snapshot and stream the deletes through a
+	// WriteBatch so we don't blow past the per-transaction size limit on pubkeys
+	// with a lot of events
+	wb := b.NewWriteBatch()
+	err = b.View(func(txn *badger.Txn) error {
+		it := txn.NewIterator(badger.IteratorOptions{
 			PrefetchValues: false,
 			Prefix:         prefix,
-		}
-		it := txn.NewIterator(opts)
+		})
 		defer it.Close()
 
-		toDelete := make([][]byte, 0, 1000)
-		
 		for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
-			item := it.Item()
-			key := item.Key()
-			
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			default:
+			}
+
+			key := it.Item().Key()
+
 			// Key format: [prefix(1)][pubkey_prefix8(8)][created_at(4)][idx(4)]
 			if len(key) < 1+8+4+4 {
 				continue
 			}
-			
+
 			// Extract created_at timestamp (stored as uint32)
 			createdAt := int64(binary.BigEndian.Uint32(key[1+8 : 1+8+4]))
-			
-			if createdAt <= until {
-				// Extract idx
-				idx := make([]byte, 1+4)
-				idx[0] = rawEventStorePrefix
-				copy(idx[1:], key[1+8+4:])
-				
-				// Get the event to find all its index keys
-				eventItem, err := txn.Get(idx)
-				if err != nil {
-					continue
-				}
-				
-				var evt nostr.Event
-				err = eventItem.Value(func(val []byte) error {
-					return bin.Unmarshal(val, &evt)
-				})
-				if err != nil {
-					continue
-				}
-				
-				// Verify this is the correct pubkey (prefix match might have false positives)
-				if evt.PubKey != pubkey {
-					continue
-				}
-				
-				// Skip kind 62 events (vanish requests should be kept for bookkeeping)
-				if evt.Kind == 62 {
-					continue
-				}
-				
-				// Collect all index keys for this event
-				for k := range b.getIndexKeysForEvent(&evt, idx[1:]) {
-					toDelete = append(toDelete, k)
-				}
-				
-				// Add raw event key
-				toDelete = append(toDelete, idx)
+			if createdAt > until {
+				continue
 			}
-		}
-		
-		// Delete all collected keys
-		for _, key := range toDelete {
-			if err := txn.Delete(key); err != nil {
+
+			// Extract idx
+			idx := make([]byte, 1+4)
+			idx[0] = rawEventStorePrefix
+			copy(idx[1:], key[1+8+4:])
+
+			// Get the event to find all its index keys
+			eventItem, err := txn.Get(idx)
+			if err != nil {
+				continue
+			}
+
+			var evt nostr.Event
+			if err := eventItem.Value(func(val []byte) error {
+				return bin.Unmarshal(val, &evt)
+			}); err != nil {
+				continue
+			}
+
+			// the prefix match might have false positives, so verify the pubkey
+			if evt.PubKey != pubkey {
+				continue
+			}
+
+			// vanish requests themselves are kept for bookkeeping
+			if evt.Kind == kindRequestToVanish {
+				continue
+			}
+
+			// delete all index keys for this event plus the raw event
+			for k := range b.getIndexKeysForEvent(&evt, idx[1:]) {
+				if err := wb.Delete(k); err != nil {
+					return err
+				}
+			}
+			if err := wb.Delete(idx); err != nil {
 				return err
 			}
 		}
-		
+
 		return nil
 	})
+	if err != nil {
+		wb.Cancel()
+		return err
+	}
+
+	return wb.Flush()
 }
