@@ -35,6 +35,6 @@ type Counter interface {
 // It deletes all events from a pubkey up to a given timestamp.
 type VanishPubkey interface {
 	// VanishPubkey deletes all events from the given pubkey created before or at the given timestamp.
-	// This includes all event kinds, and the deleted events should not be re-broadcastable.
+	// The kind 62 "request to vanish" events themselves are kept for bookkeeping; everything else is removed.
 	VanishPubkey(ctx context.Context, pubkey string, until int64) error
 }
