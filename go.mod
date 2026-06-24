@@ -23,6 +23,7 @@ require (
 	github.com/nbd-wtf/go-nostr v0.52.1
 	github.com/opensearch-project/opensearch-go/v4 v4.5.0
 	github.com/stretchr/testify v1.11.1
+	github.com/tursodatabase/libsql-client-go v0.0.0-20260528064733-9d5d30a29a60
 	github.com/urfave/cli/v3 v3.5.0
 	go.mongodb.org/mongo-driver/v2 v2.4.0
 	golang.org/x/exp v0.0.0-20251023183803-a4bb9ffd2546
@@ -33,6 +34,7 @@ require (
 	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/ImVexed/fasturl v0.0.0-20230304231329-4e41488060f3 // indirect
 	github.com/RoaringBitmap/roaring v1.9.4 // indirect
+	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
 	github.com/aws/aws-sdk-go-v2/credentials v1.18.21 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.20.21 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.13 // indirect
