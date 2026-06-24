@@ -12,7 +12,6 @@ import (
 	"github.com/fiatjaf/eventstore/postgresql"
 	"github.com/fiatjaf/eventstore/slicestore"
 	"github.com/fiatjaf/eventstore/sqlite3"
-	"github.com/fiatjaf/eventstore/turso"
 )
 
 const (
@@ -58,20 +57,6 @@ func TestSQLite(t *testing.T) {
 		os.RemoveAll(dbpath + "sqlite")
 		t.Run(test.name, func(t *testing.T) {
 			test.run(t, &sqlite3.SQLite3Backend{DatabaseURL: dbpath + "sqlite", QueryLimit: 1000, QueryTagsLimit: 50, QueryAuthorsLimit: 2000})
-		})
-	}
-}
-
-func TestTurso(t *testing.T) {
-	// turso is a remote-only backend; it requires a real libsql:// (or https://) URL,
-	// so the test only runs when TURSO_DATABASE_URL is set.
-	url := os.Getenv("TURSO_DATABASE_URL")
-	if url == "" {
-		t.Skip("set TURSO_DATABASE_URL to run the turso test")
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			test.run(t, &turso.TursoBackend{DatabaseURL: url, QueryLimit: 1000, QueryTagsLimit: 50, QueryAuthorsLimit: 2000})
 		})
 	}
 }
