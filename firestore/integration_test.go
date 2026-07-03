@@ -27,7 +27,7 @@ func TestIntegration(t *testing.T) {
 	}
 	collection := os.Getenv("FIRESTORE_TEST_COLLECTION")
 	if collection == "" {
-		collection = "nostr-relay"
+		collection = "nostr-events"
 	}
 
 	b := &FirestoreBackend{ProjectID: project, Collection: collection}

@@ -8,6 +8,7 @@ import (
 )
 
 const (
+	defaultDatabaseID = "(default)"
 	defaultCollection = "events"
 	queryLimit        = 500
 	pageSize          = 100
@@ -20,6 +21,9 @@ func (b *FirestoreBackend) Init() error {
 	if b.ProjectID == "" {
 		return errors.New("firestore: ProjectID is required")
 	}
+	if b.DatabaseID == "" {
+		b.DatabaseID = defaultDatabaseID
+	}
 	if b.Collection == "" {
 		b.Collection = defaultCollection
 	}
@@ -30,7 +34,7 @@ func (b *FirestoreBackend) Init() error {
 		b.PageSize = pageSize
 	}
 
-	client, err := firestore.NewClient(context.Background(), b.ProjectID)
+	client, err := firestore.NewClientWithDatabase(context.Background(), b.ProjectID, b.DatabaseID)
 	if err != nil {
 		return err
 	}

@@ -33,6 +33,9 @@ type FirestoreBackend struct {
 	// Required. Credentials come from Application Default Credentials, or from
 	// the FIRESTORE_EMULATOR_HOST environment variable when set.
 	ProjectID string
+	// DatabaseID selects a named Firestore database within the project.
+	// Defaults to "(default)".
+	DatabaseID string
 	// Collection is the Firestore collection events are stored in. Defaults to
 	// "events".
 	Collection string
