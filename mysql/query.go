@@ -120,15 +120,14 @@ func (b *MySQLBackend) queryEventsSql(filter nostr.Filter, doCount bool) (string
 			return "", nil, nil
 		}
 
-		tag := `%["` + escapeLikeString(key) + `"`
+		orTag := make([]string, 0, len(values))
 		for _, tagValue := range values {
-			tag = tag + `, "` + escapeLikeString(tagValue) + `"`
+			orTag = append(orTag, `tags LIKE ?`)
+			params = append(params, `%["`+escapeLikeString(key)+`","`+escapeLikeString(tagValue)+`"%`)
 		}
-		tag = tag + `]%`
-		params = append(params, tag)
 
 		// each separate tag key is an independent condition
-		conditions = append(conditions, `tags LIKE ?`)
+		conditions = append(conditions, `(`+strings.Join(orTag, " OR ")+`)`)
 
 		totalTags += len(values)
 		if totalTags > b.QueryTagsLimit {
