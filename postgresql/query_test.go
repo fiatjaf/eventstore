@@ -1,6 +1,7 @@
 package postgresql
 
 import (
+	"math"
 	"strconv"
 	"strings"
 	"testing"
@@ -8,6 +9,11 @@ import (
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/stretchr/testify/assert"
 )
+
+func tsPtr(v int64) *nostr.Timestamp {
+	ts := nostr.Timestamp(v)
+	return &ts
+}
 
 var defaultBackend = &PostgresBackend{
 	QueryLimit:        queryLimit,
@@ -162,6 +168,86 @@ func TestQueryEventsSql(t *testing.T) {
 			query:  "",
 			params: nil,
 			err:    TooManyTagValues,
+		},
+		// out-of-range created_at / kind: the sql columns are 32-bit integer, so
+		// a value they cannot hold used to fail the whole query with "out of
+		// range for type integer" (22003) instead of matching nothing.
+		{
+			name:    "since above column max matches nothing",
+			backend: defaultBackend,
+			filter:  nostr.Filter{Since: tsPtr(9_999_999_999)},
+			query: `SELECT id, pubkey, created_at, kind, tags, content, sig
+			FROM event
+			WHERE false
+			ORDER BY created_at DESC, id LIMIT $1`,
+			params: []any{100},
+			err:    nil,
+		},
+		{
+			name:    "until below column min matches nothing",
+			backend: defaultBackend,
+			filter:  nostr.Filter{Until: tsPtr(-9_999_999_999)},
+			query: `SELECT id, pubkey, created_at, kind, tags, content, sig
+			FROM event
+			WHERE false
+			ORDER BY created_at DESC, id LIMIT $1`,
+			params: []any{100},
+			err:    nil,
+		},
+		{
+			name:    "since below column min is dropped",
+			backend: defaultBackend,
+			filter:  nostr.Filter{Since: tsPtr(-9_999_999_999)},
+			query: `SELECT id, pubkey, created_at, kind, tags, content, sig
+			FROM event
+			WHERE true
+			ORDER BY created_at DESC, id LIMIT $1`,
+			params: []any{100},
+			err:    nil,
+		},
+		{
+			name:    "until above column max is dropped",
+			backend: defaultBackend,
+			filter:  nostr.Filter{Until: tsPtr(9_999_999_999)},
+			query: `SELECT id, pubkey, created_at, kind, tags, content, sig
+			FROM event
+			WHERE true
+			ORDER BY created_at DESC, id LIMIT $1`,
+			params: []any{100},
+			err:    nil,
+		},
+		{
+			name:    "out-of-range kind dropped from a mixed list",
+			backend: defaultBackend,
+			filter:  nostr.Filter{Kinds: []int{1, 9_999_999_999}},
+			query: `SELECT id, pubkey, created_at, kind, tags, content, sig
+			FROM event
+			WHERE kind IN ($1)
+			ORDER BY created_at DESC, id LIMIT $2`,
+			params: []any{1, 100},
+			err:    nil,
+		},
+		{
+			name:    "all kinds out of range matches nothing",
+			backend: defaultBackend,
+			filter:  nostr.Filter{Kinds: []int{9_999_999_999}},
+			query: `SELECT id, pubkey, created_at, kind, tags, content, sig
+			FROM event
+			WHERE false
+			ORDER BY created_at DESC, id LIMIT $1`,
+			params: []any{100},
+			err:    nil,
+		},
+		{
+			name:    "column boundary values are in range",
+			backend: defaultBackend,
+			filter:  nostr.Filter{Since: tsPtr(math.MinInt32), Until: tsPtr(math.MaxInt32)},
+			query: `SELECT id, pubkey, created_at, kind, tags, content, sig
+			FROM event
+			WHERE created_at >= $1 AND created_at <= $2
+			ORDER BY created_at DESC, id LIMIT $3`,
+			params: []any{tsPtr(math.MinInt32), tsPtr(math.MaxInt32), 100},
+			err:    nil,
 		},
 	}
 
