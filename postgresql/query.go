@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/jmoiron/sqlx"
@@ -74,6 +75,7 @@ var (
 func (b *PostgresBackend) queryEventsSql(filter nostr.Filter, doCount bool) (string, []any, error) {
 	conditions := make([]string, 0, 7)
 	params := make([]any, 0, 20)
+	unsatisfiable := false
 
 	if len(filter.IDs) > 0 {
 		if len(filter.IDs) > b.QueryIDsLimit {
@@ -105,10 +107,22 @@ func (b *PostgresBackend) queryEventsSql(filter nostr.Filter, doCount bool) (str
 			return "", nil, TooManyKinds
 		}
 
+		// kind is a 32-bit integer column, so a kind outside that range can
+		// never match a stored row. Drop those rather than binding a value the
+		// column cannot hold (which fails the whole query with "out of range
+		// for type integer"); if none remain, nothing can match.
+		kinds := make([]any, 0, len(filter.Kinds))
 		for _, v := range filter.Kinds {
-			params = append(params, v)
+			if v >= math.MinInt32 && v <= math.MaxInt32 {
+				kinds = append(kinds, v)
+			}
 		}
-		conditions = append(conditions, `kind IN (`+makePlaceHolders(len(filter.Kinds))+`)`)
+		if len(kinds) == 0 {
+			unsatisfiable = true
+		} else {
+			params = append(params, kinds...)
+			conditions = append(conditions, `kind IN (`+makePlaceHolders(len(kinds))+`)`)
+		}
 	}
 
 	totalTags := 0
@@ -132,13 +146,26 @@ func (b *PostgresBackend) queryEventsSql(filter nostr.Filter, doCount bool) (str
 		conditions = append(conditions, `tagvalues && ARRAY[`+makePlaceHolders(len(values))+`]`)
 	}
 
+	// created_at is a 32-bit integer column with the same overflow: a since
+	// above its max (or until below its min) can never match, while a since
+	// below its min (or until above its max) constrains nothing and is dropped.
 	if filter.Since != nil {
-		conditions = append(conditions, `created_at >= ?`)
-		params = append(params, filter.Since)
+		switch since := int64(*filter.Since); {
+		case since > math.MaxInt32:
+			unsatisfiable = true
+		case since >= math.MinInt32:
+			conditions = append(conditions, `created_at >= ?`)
+			params = append(params, filter.Since)
+		}
 	}
 	if filter.Until != nil {
-		conditions = append(conditions, `created_at <= ?`)
-		params = append(params, filter.Until)
+		switch until := int64(*filter.Until); {
+		case until < math.MinInt32:
+			unsatisfiable = true
+		case until <= math.MaxInt32:
+			conditions = append(conditions, `created_at <= ?`)
+			params = append(params, filter.Until)
+		}
 	}
 	if filter.Search != "" {
 		config := b.FullTextSearchConfig
@@ -159,6 +186,14 @@ func (b *PostgresBackend) queryEventsSql(filter nostr.Filter, doCount bool) (str
 
 		conditions = append(conditions, `to_tsvector(?, `+contentExpr+`) @@ plainto_tsquery(?, ?)`)
 		params = append(params, config, config, filter.Search)
+	}
+
+	if unsatisfiable {
+		// a bound the column cannot satisfy: match nothing, but with a valid
+		// query that returns no rows rather than a failed one. Any conditions
+		// and params accumulated above are moot.
+		conditions = []string{"false"}
+		params = params[:0]
 	}
 
 	if len(conditions) == 0 {
