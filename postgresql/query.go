@@ -64,6 +64,15 @@ func makePlaceHolders(n int) string {
 	return strings.TrimRight(strings.Repeat("?,", n), ",")
 }
 
+// escapeSearchPattern escapes the LIKE/ILIKE wildcards so a user's search string
+// is matched literally (paired with `ESCAPE '\'`). Used by SubstringSearch.
+func escapeSearchPattern(s string) string {
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	s = strings.ReplaceAll(s, `%`, `\%`)
+	s = strings.ReplaceAll(s, `_`, `\_`)
+	return s
+}
+
 var (
 	TooManyIDs       = errors.New("too many ids")
 	TooManyAuthors   = errors.New("too many authors")
@@ -168,24 +177,37 @@ func (b *PostgresBackend) queryEventsSql(filter nostr.Filter, doCount bool) (str
 		}
 	}
 	if filter.Search != "" {
-		config := b.FullTextSearchConfig
-		if config == "" {
-			config = "simple"
-		}
 		column := b.FullTextSearchColumn
 		if column == "" {
 			column = "content"
 		}
 
-		var contentExpr string
-		if b.FullTextSearchMaxLength > 0 {
-			contentExpr = fmt.Sprintf("LEFT(%s, %d)", column, b.FullTextSearchMaxLength)
+		if b.SubstringSearch {
+			// Substring match instead of tsvector full-text search. tsvector only
+			// matches whole lexemes at word boundaries, so it misses partial terms
+			// and languages without word separators (e.g. a CJK search for "東京"
+			// never matches a stored "東京都"). ILIKE '%q%' matches any substring;
+			// create a `gin (content gin_trgm_ops)` index (pg_trgm) to keep it fast.
+			// FullTextSearchConfig/MaxLength do not apply in this mode — the raw
+			// column is matched so the trigram index stays usable.
+			conditions = append(conditions, column+` ILIKE ? ESCAPE '\'`)
+			params = append(params, `%`+escapeSearchPattern(filter.Search)+`%`)
 		} else {
-			contentExpr = column
-		}
+			config := b.FullTextSearchConfig
+			if config == "" {
+				config = "simple"
+			}
 
-		conditions = append(conditions, `to_tsvector(?, `+contentExpr+`) @@ plainto_tsquery(?, ?)`)
-		params = append(params, config, config, filter.Search)
+			var contentExpr string
+			if b.FullTextSearchMaxLength > 0 {
+				contentExpr = fmt.Sprintf("LEFT(%s, %d)", column, b.FullTextSearchMaxLength)
+			} else {
+				contentExpr = column
+			}
+
+			conditions = append(conditions, `to_tsvector(?, `+contentExpr+`) @@ plainto_tsquery(?, ?)`)
+			params = append(params, config, config, filter.Search)
+		}
 	}
 
 	if unsatisfiable {

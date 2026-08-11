@@ -23,6 +23,15 @@ var defaultBackend = &PostgresBackend{
 	QueryTagsLimit:    queryTagsLimit,
 }
 
+var substringSearchBackend = &PostgresBackend{
+	QueryLimit:        queryLimit,
+	QueryIDsLimit:     queryIDsLimit,
+	QueryAuthorsLimit: queryAuthorsLimit,
+	QueryKindsLimit:   queryKindsLimit,
+	QueryTagsLimit:    queryTagsLimit,
+	SubstringSearch:   true,
+}
+
 func TestQueryEventsSql(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -247,6 +256,40 @@ func TestQueryEventsSql(t *testing.T) {
 			WHERE created_at >= $1 AND created_at <= $2
 			ORDER BY created_at DESC, id LIMIT $3`,
 			params: []any{tsPtr(math.MinInt32), tsPtr(math.MaxInt32), 100},
+			err:    nil,
+		},
+		// NIP-50 search: tsvector full-text by default, ILIKE substring when opted in.
+		{
+			name:    "search uses tsvector by default",
+			backend: defaultBackend,
+			filter:  nostr.Filter{Search: "hello"},
+			query: `SELECT id, pubkey, created_at, kind, tags, content, sig
+			FROM event
+			WHERE to_tsvector($1, content) @@ plainto_tsquery($2, $3)
+			ORDER BY created_at DESC, id LIMIT $4`,
+			params: []any{"simple", "simple", "hello", 100},
+			err:    nil,
+		},
+		{
+			name:    "search uses ILIKE substring when SubstringSearch is set",
+			backend: substringSearchBackend,
+			filter:  nostr.Filter{Search: "東京"},
+			query: `SELECT id, pubkey, created_at, kind, tags, content, sig
+			FROM event
+			WHERE content ILIKE $1 ESCAPE '\'
+			ORDER BY created_at DESC, id LIMIT $2`,
+			params: []any{"%東京%", 100},
+			err:    nil,
+		},
+		{
+			name:    "substring search escapes like wildcards",
+			backend: substringSearchBackend,
+			filter:  nostr.Filter{Search: `50%_x`},
+			query: `SELECT id, pubkey, created_at, kind, tags, content, sig
+			FROM event
+			WHERE content ILIKE $1 ESCAPE '\'
+			ORDER BY created_at DESC, id LIMIT $2`,
+			params: []any{`%50\%\_x%`, 100},
 			err:    nil,
 		},
 	}
