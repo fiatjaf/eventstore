@@ -292,6 +292,17 @@ func TestQueryEventsSql(t *testing.T) {
 			params: []any{`%50\%\_x%`, 100},
 			err:    nil,
 		},
+		{
+			name:    "substring search ANDs each whitespace-separated term",
+			backend: substringSearchBackend,
+			filter:  nostr.Filter{Search: "東京 京都"},
+			query: `SELECT id, pubkey, created_at, kind, tags, content, sig
+			FROM event
+			WHERE content ILIKE $1 ESCAPE '\' AND content ILIKE $2 ESCAPE '\'
+			ORDER BY created_at DESC, id LIMIT $3`,
+			params: []any{"%東京%", "%京都%", 100},
+			err:    nil,
+		},
 	}
 
 	for _, tt := range tests {
