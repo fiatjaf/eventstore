@@ -186,12 +186,17 @@ func (b *PostgresBackend) queryEventsSql(filter nostr.Filter, doCount bool) (str
 			// Substring match instead of tsvector full-text search. tsvector only
 			// matches whole lexemes at word boundaries, so it misses partial terms
 			// and languages without word separators (e.g. a CJK search for "東京"
-			// never matches a stored "東京都"). ILIKE '%q%' matches any substring;
-			// create a `gin (content gin_trgm_ops)` index (pg_trgm) to keep it fast.
-			// FullTextSearchConfig/MaxLength do not apply in this mode — the raw
-			// column is matched so the trigram index stays usable.
-			conditions = append(conditions, column+` ILIKE ? ESCAPE '\'`)
-			params = append(params, `%`+escapeSearchPattern(filter.Search)+`%`)
+			// never matches a stored "東京都"). Each whitespace-separated term must
+			// be present as a substring (AND), mirroring plainto_tsquery's all-terms
+			// semantics, so "東京 京都" matches content containing both. ILIKE '%q%'
+			// matches any substring; create a `gin (content gin_trgm_ops)` index
+			// (pg_trgm) to keep it fast. FullTextSearchConfig/MaxLength do not apply
+			// in this mode — the raw column is matched so the trigram index stays
+			// usable.
+			for _, term := range strings.Fields(filter.Search) {
+				conditions = append(conditions, column+` ILIKE ? ESCAPE '\'`)
+				params = append(params, `%`+escapeSearchPattern(term)+`%`)
+			}
 		} else {
 			config := b.FullTextSearchConfig
 			if config == "" {
