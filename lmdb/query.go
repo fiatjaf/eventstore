@@ -58,7 +58,7 @@ func (b *LMDBBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (cha
 }
 
 func (b *LMDBBackend) query(txn *lmdb.Txn, filter nostr.Filter, limit int) ([]internal.IterEvent, error) {
-	queries, extraAuthors, extraKinds, extraTagKey, extraTagValues, since, err := b.prepareQueries(filter)
+	queries, extraAuthors, extraKinds, extraTags, since, err := b.prepareQueries(filter)
 	if err != nil {
 		return nil, err
 	}
@@ -180,8 +180,8 @@ func (b *LMDBBackend) query(txn *lmdb.Txn, filter nostr.Filter, limit int) ([]in
 
 				// fmt.Println("      event", hex.EncodeToString(val[0:4]), "kind", binary.BigEndian.Uint16(val[132:134]), "author", hex.EncodeToString(val[32:36]), "ts", nostr.Timestamp(binary.BigEndian.Uint32(val[128:132])), hex.EncodeToString(it.key), it.valIdx)
 
-				// if there is still a tag to be checked, do it now
-				if extraTagValues != nil && !event.Tags.ContainsAny(extraTagKey, extraTagValues) {
+				// check every tag of the filter against the event, the indexed one included
+				if !tagsMatch(extraTags, event) {
 					it.next()
 					continue
 				}
@@ -407,4 +407,13 @@ func (b *LMDBBackend) query(txn *lmdb.Txn, filter nostr.Filter, limit int) ([]in
 	}
 
 	return combinedResults, nil
+}
+
+func tagsMatch(tags nostr.TagMap, event *nostr.Event) bool {
+	for key, values := range tags {
+		if len(values) > 0 && !event.Tags.ContainsAny(key, values) {
+			return false
+		}
+	}
+	return true
 }
