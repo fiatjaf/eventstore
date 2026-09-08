@@ -24,8 +24,7 @@ func (b *LMDBBackend) prepareQueries(filter nostr.Filter) (
 	queries []query,
 	extraAuthors [][32]byte,
 	extraKinds [][2]byte,
-	extraTagKey string,
-	extraTagValues []string,
+	extraTags nostr.TagMap,
 	since uint32,
 	err error,
 ) {
@@ -55,15 +54,15 @@ func (b *LMDBBackend) prepareQueries(filter nostr.Filter) (
 		queries = make([]query, len(filter.IDs))
 		for i, idHex := range filter.IDs {
 			if len(idHex) != 64 {
-				return nil, nil, nil, "", nil, 0, fmt.Errorf("invalid id '%s'", idHex)
+				return nil, nil, nil, nil, 0, fmt.Errorf("invalid id '%s'", idHex)
 			}
 			prefix := make([]byte, 8)
 			if _, err := hex.Decode(prefix[0:8], []byte(idHex[0:8*2])); err != nil {
-				return nil, nil, nil, "", nil, 0, fmt.Errorf("invalid id '%s'", idHex)
+				return nil, nil, nil, nil, 0, fmt.Errorf("invalid id '%s'", idHex)
 			}
 			queries[i] = query{i: i, dbi: b.indexId, prefix: prefix[0:8], keySize: 8, timestampSize: 0}
 		}
-		return queries, nil, nil, "", nil, 0, nil
+		return queries, nil, nil, nil, 0, nil
 	}
 
 	// this is where we'll end the iteration
@@ -90,13 +89,13 @@ func (b *LMDBBackend) prepareQueries(filter nostr.Filter) (
 				queries = make([]query, len(tagValues)*len(filter.Kinds))
 				for _, value := range tagValues {
 					if len(value) != 64 {
-						return nil, nil, nil, "", nil, 0, fmt.Errorf("invalid 'p' tag '%s'", value)
+						return nil, nil, nil, nil, 0, fmt.Errorf("invalid 'p' tag '%s'", value)
 					}
 
 					for _, kind := range filter.Kinds {
 						k := make([]byte, 8+2)
 						if _, err := hex.Decode(k[0:8], []byte(value[0:8*2])); err != nil {
-							return nil, nil, nil, "", nil, 0, fmt.Errorf("invalid 'p' tag '%s'", value)
+							return nil, nil, nil, nil, 0, fmt.Errorf("invalid 'p' tag '%s'", value)
 						}
 						binary.BigEndian.PutUint16(k[8:8+2], uint16(kind))
 						queries[i] = query{i: i, dbi: b.indexPTagKind, prefix: k[0 : 8+2], keySize: 8 + 2 + 4, timestampSize: 4}
@@ -108,12 +107,12 @@ func (b *LMDBBackend) prepareQueries(filter nostr.Filter) (
 				queries = make([]query, len(tagValues))
 				for i, value := range tagValues {
 					if len(value) != 64 {
-						return nil, nil, nil, "", nil, 0, fmt.Errorf("invalid 'p' tag '%s'", value)
+						return nil, nil, nil, nil, 0, fmt.Errorf("invalid 'p' tag '%s'", value)
 					}
 
 					k := make([]byte, 8)
 					if _, err := hex.Decode(k[0:8], []byte(value[0:8*2])); err != nil {
-						return nil, nil, nil, "", nil, 0, fmt.Errorf("invalid 'p' tag '%s'", value)
+						return nil, nil, nil, nil, 0, fmt.Errorf("invalid 'p' tag '%s'", value)
 					}
 					queries[i] = query{i: i, dbi: b.indexPTagKind, prefix: k[0:8], keySize: 8 + 2 + 4, timestampSize: 4}
 				}
@@ -147,13 +146,14 @@ func (b *LMDBBackend) prepareQueries(filter nostr.Filter) (
 			}
 		}
 
-		// add an extra useless tag if available
-		filter.Tags = internal.CopyMapWithoutKey(filter.Tags, tagKey)
+		// every tag is checked against the fetched event, the indexed one included: for plain string values (and the
+		// "d" part of "a" values) the index key is the value itself with nothing after it, so a query for "a" also walks
+		// the keys of "a-b", "abc" and so on (https://github.com/fiatjaf/khatru/issues/52)
 		if len(filter.Tags) > 0 {
-			extraTagKey, extraTagValues, _ = internal.ChooseNarrowestTag(filter)
+			extraTags = filter.Tags
 		}
 
-		return queries, extraAuthors, extraKinds, extraTagKey, extraTagValues, since, nil
+		return queries, extraAuthors, extraKinds, extraTags, since, nil
 	}
 
 pubkeyMatching:
@@ -163,11 +163,11 @@ pubkeyMatching:
 			queries = make([]query, len(filter.Authors))
 			for i, pubkeyHex := range filter.Authors {
 				if len(pubkeyHex) != 64 {
-					return nil, nil, nil, "", nil, 0, fmt.Errorf("invalid author '%s'", pubkeyHex)
+					return nil, nil, nil, nil, 0, fmt.Errorf("invalid author '%s'", pubkeyHex)
 				}
 				prefix := make([]byte, 8)
 				if _, err := hex.Decode(prefix[0:8], []byte(pubkeyHex[0:8*2])); err != nil {
-					return nil, nil, nil, "", nil, 0, fmt.Errorf("invalid author '%s'", pubkeyHex)
+					return nil, nil, nil, nil, 0, fmt.Errorf("invalid author '%s'", pubkeyHex)
 				}
 				queries[i] = query{i: i, dbi: b.indexPubkey, prefix: prefix[0:8], keySize: 8 + 4, timestampSize: 4}
 			}
@@ -178,11 +178,11 @@ pubkeyMatching:
 			for _, pubkeyHex := range filter.Authors {
 				for _, kind := range filter.Kinds {
 					if len(pubkeyHex) != 64 {
-						return nil, nil, nil, "", nil, 0, fmt.Errorf("invalid author '%s'", pubkeyHex)
+						return nil, nil, nil, nil, 0, fmt.Errorf("invalid author '%s'", pubkeyHex)
 					}
 					prefix := make([]byte, 8+2)
 					if _, err := hex.Decode(prefix[0:8], []byte(pubkeyHex[0:8*2])); err != nil {
-						return nil, nil, nil, "", nil, 0, fmt.Errorf("invalid author '%s'", pubkeyHex)
+						return nil, nil, nil, nil, 0, fmt.Errorf("invalid author '%s'", pubkeyHex)
 					}
 					binary.BigEndian.PutUint16(prefix[8:8+2], uint16(kind))
 					queries[i] = query{i: i, dbi: b.indexPubkeyKind, prefix: prefix[0 : 8+2], keySize: 10 + 4, timestampSize: 4}
@@ -191,9 +191,11 @@ pubkeyMatching:
 			}
 		}
 
-		// potentially with an extra useless tag filtering
-		extraTagKey, extraTagValues, _ = internal.ChooseNarrowestTag(filter)
-		return queries, nil, nil, extraTagKey, extraTagValues, since, nil
+		// every tag in the filter is checked against the fetched event
+		if len(filter.Tags) > 0 {
+			extraTags = filter.Tags
+		}
+		return queries, nil, nil, extraTags, since, nil
 	}
 
 	if len(filter.Kinds) > 0 {
@@ -205,14 +207,16 @@ pubkeyMatching:
 			queries[i] = query{i: i, dbi: b.indexKind, prefix: prefix[0:2], keySize: 2 + 4, timestampSize: 4}
 		}
 
-		// potentially with an extra useless tag filtering
-		tagKey, tagValues, _ := internal.ChooseNarrowestTag(filter)
-		return queries, nil, nil, tagKey, tagValues, since, nil
+		// every tag in the filter is checked against the fetched event
+		if len(filter.Tags) > 0 {
+			extraTags = filter.Tags
+		}
+		return queries, nil, nil, extraTags, since, nil
 	}
 
 	// if we got here our query will have nothing to filter with
 	queries = make([]query, 1)
 	prefix := make([]byte, 0)
 	queries[0] = query{i: 0, dbi: b.indexCreatedAt, prefix: prefix, keySize: 0 + 4, timestampSize: 4}
-	return queries, nil, nil, "", nil, since, nil
+	return queries, nil, nil, nil, since, nil
 }

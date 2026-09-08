@@ -17,7 +17,7 @@ import (
 func (b *LMDBBackend) CountEvents(ctx context.Context, filter nostr.Filter) (int64, error) {
 	var count int64 = 0
 
-	queries, extraAuthors, extraKinds, extraTagKey, extraTagValues, since, err := b.prepareQueries(filter)
+	queries, extraAuthors, extraKinds, extraTags, since, err := b.prepareQueries(filter)
 	if err != nil {
 		return 0, err
 	}
@@ -50,7 +50,7 @@ func (b *LMDBBackend) CountEvents(ctx context.Context, filter nostr.Filter) (int
 					}
 				}
 
-				if extraAuthors == nil && extraKinds == nil && extraTagValues == nil {
+				if extraAuthors == nil && extraKinds == nil && len(extraTags) == 0 {
 					count++
 				} else {
 					// fetch actual event
@@ -78,7 +78,7 @@ func (b *LMDBBackend) CountEvents(ctx context.Context, filter nostr.Filter) (int
 					}
 
 					// if there is still a tag to be checked, do it now
-					if !evt.Tags.ContainsAny(extraTagKey, extraTagValues) {
+					if !tagsMatch(extraTags, evt) {
 						it.next()
 						continue
 					}
@@ -103,7 +103,7 @@ func (b *LMDBBackend) CountEventsHLL(ctx context.Context, filter nostr.Filter, o
 	var count int64 = 0
 
 	// this is different than CountEvents because some of these extra checks are not applicable in HLL-valid filters
-	queries, _, extraKinds, extraTagKey, extraTagValues, since, err := b.prepareQueries(filter)
+	queries, _, extraKinds, extraTags, since, err := b.prepareQueries(filter)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -144,7 +144,7 @@ func (b *LMDBBackend) CountEventsHLL(ctx context.Context, filter nostr.Filter, o
 					panic(err)
 				}
 
-				if extraKinds == nil && extraTagValues == nil {
+				if extraKinds == nil && len(extraTags) == 0 {
 					// nothing extra to check
 					count++
 					hll.AddBytes(val[32:64])
@@ -162,7 +162,7 @@ func (b *LMDBBackend) CountEventsHLL(ctx context.Context, filter nostr.Filter, o
 					}
 
 					// if there is still a tag to be checked, do it now
-					if !evt.Tags.ContainsAny(extraTagKey, extraTagValues) {
+					if !tagsMatch(extraTags, evt) {
 						it.next()
 						continue
 					}
