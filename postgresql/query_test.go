@@ -338,3 +338,37 @@ func strSlice(n int) []string {
 	}
 	return slice
 }
+
+func TestCountEventsFiltersBuildsAUnion(t *testing.T) {
+	// NIP-45 OR's the filters together, so the ids are UNION'd -- not UNION
+	// ALL'd -- to drop the events that match more than one of them.
+	conditions1, params1, err := defaultBackend.filterConditions(nostr.Filter{Kinds: []int{1}})
+	assert.NoError(t, err)
+	conditions2, params2, err := defaultBackend.filterConditions(nostr.Filter{Kinds: []int{1, 7}})
+	assert.NoError(t, err)
+
+	assert.NotContains(t, strings.Join(conditions1, " "), "LIMIT",
+		"conditions carry no LIMIT of their own")
+	assert.Equal(t, []any{1}, params1)
+	assert.Equal(t, []any{1, 7}, params2)
+
+	// the placeholders have to be numbered across every filter, not restarted
+	// for each one, so the whole statement is rebound at once
+	query := "SELECT COUNT(*) FROM (" +
+		"SELECT id FROM event WHERE " + strings.Join(conditions1, " AND ") + " UNION " +
+		"SELECT id FROM event WHERE " + strings.Join(conditions2, " AND ") + ") AS matched"
+	assert.Equal(t, 3, strings.Count(query, "?"))
+}
+
+func TestFilterConditionsOmitsLimit(t *testing.T) {
+	// queryEventsSql appends the LIMIT parameter itself; filterConditions must
+	// not, or a UNION built from it would bind the wrong values.
+	conditions, params, err := defaultBackend.filterConditions(nostr.Filter{Kinds: []int{1}, Limit: 5})
+	assert.NoError(t, err)
+	assert.Equal(t, []any{1}, params)
+	assert.NotContains(t, strings.Join(conditions, " "), "LIMIT")
+
+	_, sqlParams, err := defaultBackend.queryEventsSql(nostr.Filter{Kinds: []int{1}, Limit: 5}, true)
+	assert.NoError(t, err)
+	assert.Equal(t, []any{1, 5}, sqlParams)
+}
