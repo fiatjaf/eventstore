@@ -103,7 +103,23 @@ func (b *BadgerBackend) getIndexKeysForEvent(evt *nostr.Event, idx []byte) iter.
 		customSkip := b.SkipIndexingTag != nil
 
 		for i, tag := range evt.Tags {
-			if len(tag) < 2 || len(tag[0]) != 1 || len(tag[1]) == 0 || len(tag[1]) > 100 {
+			// A tag with fewer than 2 elements (e.g. NIP-70's bare ["-"]
+			// protected-event marker) has no tag[1] at all. Go evaluates
+			// call arguments before the call, so passing tag[1] straight
+			// into IndexLongerTag below -- inside the very branch this
+			// length check exists to guard -- panicked with an
+			// out-of-range index before IndexLongerTag's own body (which
+			// does handle a short/empty value safely) ever ran. Since
+			// IndexLongerTag is wired for every event a relay stores, not
+			// just ones it authors itself, any client publishing any
+			// event containing a bare single-element tag would crash the
+			// whole process. Checked separately, before ever touching
+			// tag[1], rather than folded back into the compound condition
+			// below.
+			if len(tag) < 2 {
+				continue
+			}
+			if len(tag[0]) != 1 || len(tag[1]) == 0 || len(tag[1]) > 100 {
 				if !customIndex || !b.IndexLongerTag(evt, tag[0], tag[1]) {
 					// not indexable
 					continue
