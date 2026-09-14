@@ -30,3 +30,18 @@ type Store interface {
 type Counter interface {
 	CountEvents(context.Context, nostr.Filter) (int64, error)
 }
+
+// Notifier is implemented by stores that can propagate events between several
+// processes sharing the same storage, so that a relay running as multiple
+// instances can push events published to one instance to the subscribers of
+// all the others.
+//
+// The relay calls Notify for every accepted event, after saving it; ephemeral
+// events are passed too even though they are never saved. Notifications must
+// deliver every event passed to Notify by any process, including the calling
+// one, and keep its channel open until ctx is done, reconnecting to the
+// underlying transport as needed.
+type Notifier interface {
+	Notify(context.Context, *nostr.Event) error
+	Notifications(context.Context) (<-chan *nostr.Event, error)
+}
