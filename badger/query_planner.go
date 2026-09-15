@@ -83,10 +83,13 @@ func prepareQueries(filter nostr.Filter) (
 			i++
 		}
 
+		// the indexed tag stays in the extra filter: for plain string values (and the "d" part of "a" values) the index key
+		// is the value itself with nothing after it, so a query for "a" also walks the keys of "a-b", "abc" and so on
+		// (https://github.com/fiatjaf/khatru/issues/52). the exact match is done against the fetched event below.
 		extraFilter = &nostr.Filter{
 			Kinds:   filter.Kinds,
 			Authors: filter.Authors,
-			Tags:    internal.CopyMapWithoutKey(filter.Tags, tagKey),
+			Tags:    filter.Tags,
 		}
 
 		return queries, extraFilter, since, nil
