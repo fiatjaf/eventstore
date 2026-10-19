@@ -6,12 +6,18 @@ import (
 	"log"
 
 	"github.com/dgraph-io/badger/v4"
+	"github.com/fiatjaf/eventstore/internal"
 	bin "github.com/fiatjaf/eventstore/internal/binary"
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/nbd-wtf/go-nostr/nip45/hyperloglog"
 )
 
 func (b *BadgerBackend) CountEvents(ctx context.Context, filter nostr.Filter) (int64, error) {
+	filter, unsatisfiable := internal.SanitizeFilter(filter)
+	if unsatisfiable {
+		return 0, nil
+	}
+
 	var count int64 = 0
 
 	queries, extraFilter, since, err := prepareQueries(filter)
@@ -88,6 +94,11 @@ func (b *BadgerBackend) CountEvents(ctx context.Context, filter nostr.Filter) (i
 }
 
 func (b *BadgerBackend) CountEventsHLL(ctx context.Context, filter nostr.Filter, offset int) (int64, *hyperloglog.HyperLogLog, error) {
+	filter, unsatisfiable := internal.SanitizeFilter(filter)
+	if unsatisfiable {
+		return 0, hyperloglog.New(offset), nil
+	}
+
 	var count int64 = 0
 
 	queries, extraFilter, since, err := prepareQueries(filter)

@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 
 	"github.com/PowerDNS/lmdb-go/lmdb"
+	"github.com/fiatjaf/eventstore/internal"
 	bin "github.com/fiatjaf/eventstore/internal/binary"
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/nbd-wtf/go-nostr/nip45"
@@ -15,6 +16,11 @@ import (
 )
 
 func (b *LMDBBackend) CountEvents(ctx context.Context, filter nostr.Filter) (int64, error) {
+	filter, unsatisfiable := internal.SanitizeFilter(filter)
+	if unsatisfiable {
+		return 0, nil
+	}
+
 	var count int64 = 0
 
 	queries, extraAuthors, extraKinds, extraTagKey, extraTagValues, since, err := b.prepareQueries(filter)
@@ -98,6 +104,11 @@ func (b *LMDBBackend) CountEvents(ctx context.Context, filter nostr.Filter) (int
 
 // CountEventsHLL is like CountEvents, but it will build a hyperloglog value while iterating through results, following NIP-45
 func (b *LMDBBackend) CountEventsHLL(ctx context.Context, filter nostr.Filter, offset int) (int64, *hyperloglog.HyperLogLog, error) {
+	filter, unsatisfiable := internal.SanitizeFilter(filter)
+	if unsatisfiable {
+		return 0, hyperloglog.New(offset), nil
+	}
+
 	if useCache, _ := b.EnableHLLCacheFor(filter.Kinds[0]); useCache {
 		return b.countEventsHLLCached(filter)
 	}

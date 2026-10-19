@@ -11,6 +11,7 @@ import (
 
 	"github.com/aquasecurity/esquery"
 	"github.com/elastic/go-elasticsearch/v8/esutil"
+	"github.com/fiatjaf/eventstore/internal"
 	"github.com/nbd-wtf/go-nostr"
 )
 
@@ -118,6 +119,11 @@ func (ess *ElasticsearchStorage) getByID(filter nostr.Filter) ([]*nostr.Event, e
 }
 
 func (ess *ElasticsearchStorage) QueryEvents(ctx context.Context, filter nostr.Filter) (chan *nostr.Event, error) {
+	filter, unsatisfiable := internal.SanitizeFilter(filter)
+	if unsatisfiable {
+		return internal.NoEvents(), nil
+	}
+
 	ch := make(chan *nostr.Event)
 
 	// optimization: get by id
@@ -223,6 +229,11 @@ func toInterfaceSlice(slice interface{}) []interface{} {
 }
 
 func (ess *ElasticsearchStorage) CountEvents(ctx context.Context, filter nostr.Filter) (int64, error) {
+	filter, unsatisfiable := internal.SanitizeFilter(filter)
+	if unsatisfiable {
+		return 0, nil
+	}
+
 	count := int64(0)
 
 	// optimization: get by id
