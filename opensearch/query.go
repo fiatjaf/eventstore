@@ -8,6 +8,7 @@ import (
 	"reflect"
 
 	"github.com/aquasecurity/esquery"
+	"github.com/fiatjaf/eventstore/internal"
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/opensearch-project/opensearch-go/v4/opensearchapi"
 	"github.com/opensearch-project/opensearch-go/v4/opensearchutil"
@@ -101,6 +102,11 @@ func (oss *OpensearchStorage) getByID(filter nostr.Filter) ([]*nostr.Event, erro
 }
 
 func (oss *OpensearchStorage) QueryEvents(ctx context.Context, filter nostr.Filter) (chan *nostr.Event, error) {
+	filter, unsatisfiable := internal.SanitizeFilter(filter)
+	if unsatisfiable {
+		return internal.NoEvents(), nil
+	}
+
 	ch := make(chan *nostr.Event)
 
 	// optimization: get by id
@@ -203,6 +209,11 @@ func toInterfaceSlice(slice interface{}) []interface{} {
 }
 
 func (oss *OpensearchStorage) CountEvents(ctx context.Context, filter nostr.Filter) (int64, error) {
+	filter, unsatisfiable := internal.SanitizeFilter(filter)
+	if unsatisfiable {
+		return 0, nil
+	}
+
 	count := int64(0)
 
 	// optimization: get by id

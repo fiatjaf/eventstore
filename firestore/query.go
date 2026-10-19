@@ -7,6 +7,7 @@ import (
 
 	"cloud.google.com/go/firestore"
 	pb "cloud.google.com/go/firestore/apiv1/firestorepb"
+	"github.com/fiatjaf/eventstore/internal"
 	"github.com/nbd-wtf/go-nostr"
 	"google.golang.org/api/iterator"
 )
@@ -44,6 +45,11 @@ func (b *FirestoreBackend) buildFilteredQuery(filter nostr.Filter) firestore.Que
 }
 
 func (b *FirestoreBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (chan *nostr.Event, error) {
+	filter, unsatisfiable := internal.SanitizeFilter(filter)
+	if unsatisfiable {
+		return internal.NoEvents(), nil
+	}
+
 	limit := filter.Limit
 	if limit < 1 || limit > b.QueryLimit {
 		limit = b.QueryLimit
@@ -114,6 +120,11 @@ func (b *FirestoreBackend) QueryEvents(ctx context.Context, filter nostr.Filter)
 }
 
 func (b *FirestoreBackend) CountEvents(ctx context.Context, filter nostr.Filter) (int64, error) {
+	filter, unsatisfiable := internal.SanitizeFilter(filter)
+	if unsatisfiable {
+		return 0, nil
+	}
+
 	base := b.buildFilteredQuery(filter)
 
 	// When the whole filter fits in the pushed-down query we can use Firestore's

@@ -7,11 +7,17 @@ import (
 	"math"
 	"strings"
 
+	"github.com/fiatjaf/eventstore/internal"
 	"github.com/jmoiron/sqlx"
 	"github.com/nbd-wtf/go-nostr"
 )
 
 func (b *MySQLBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch chan *nostr.Event, err error) {
+	filter, unsatisfiable := internal.SanitizeFilter(filter)
+	if unsatisfiable {
+		return internal.NoEvents(), nil
+	}
+
 	ch = make(chan *nostr.Event)
 
 	query, params, err := b.queryEventsSql(filter, false)
@@ -50,6 +56,11 @@ func (b *MySQLBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (ch
 }
 
 func (b *MySQLBackend) CountEvents(ctx context.Context, filter nostr.Filter) (int64, error) {
+	filter, unsatisfiable := internal.SanitizeFilter(filter)
+	if unsatisfiable {
+		return 0, nil
+	}
+
 	query, params, err := b.queryEventsSql(filter, true)
 	if err != nil {
 		return 0, err
@@ -69,6 +80,8 @@ func (b *MySQLBackend) CountEvents(ctx context.Context, filter nostr.Filter) (in
 // pulling the ids back to deduplicate them here would cost one id per stored
 // event.
 func (b *MySQLBackend) CountEventsFilters(ctx context.Context, filters nostr.Filters) (int64, error) {
+	filters = internal.SanitizeFilters(filters)
+
 	switch len(filters) {
 	case 0:
 		return 0, nil
