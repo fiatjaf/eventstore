@@ -60,13 +60,13 @@ func (b *LMDBBackend) CountEvents(ctx context.Context, filter nostr.Filter) (int
 					}
 
 					// check it against pubkeys without decoding the entire thing
-					if !slices.Contains(extraAuthors, [32]byte(val[32:64])) {
+					if extraAuthors != nil && !slices.Contains(extraAuthors, [32]byte(val[32:64])) {
 						it.next()
 						continue
 					}
 
 					// check it against kinds without decoding the entire thing
-					if !slices.Contains(extraKinds, [2]byte(val[132:134])) {
+					if extraKinds != nil && !slices.Contains(extraKinds, [2]byte(val[132:134])) {
 						it.next()
 						continue
 					}
@@ -78,13 +78,15 @@ func (b *LMDBBackend) CountEvents(ctx context.Context, filter nostr.Filter) (int
 					}
 
 					// if there is still a tag to be checked, do it now
-					if !evt.Tags.ContainsAny(extraTagKey, extraTagValues) {
+					if extraTagValues != nil && !evt.Tags.ContainsAny(extraTagKey, extraTagValues) {
 						it.next()
 						continue
 					}
 
 					count++
 				}
+
+				it.next()
 			}
 		}
 
@@ -150,7 +152,7 @@ func (b *LMDBBackend) CountEventsHLL(ctx context.Context, filter nostr.Filter, o
 					hll.AddBytes(val[32:64])
 				} else {
 					// check it against kinds without decoding the entire thing
-					if !slices.Contains(extraKinds, [2]byte(val[132:134])) {
+					if extraKinds != nil && !slices.Contains(extraKinds, [2]byte(val[132:134])) {
 						it.next()
 						continue
 					}
@@ -162,7 +164,7 @@ func (b *LMDBBackend) CountEventsHLL(ctx context.Context, filter nostr.Filter, o
 					}
 
 					// if there is still a tag to be checked, do it now
-					if !evt.Tags.ContainsAny(extraTagKey, extraTagValues) {
+					if extraTagValues != nil && !evt.Tags.ContainsAny(extraTagKey, extraTagValues) {
 						it.next()
 						continue
 					}
@@ -170,6 +172,8 @@ func (b *LMDBBackend) CountEventsHLL(ctx context.Context, filter nostr.Filter, o
 					count++
 					hll.Add(evt.PubKey)
 				}
+
+				it.next()
 			}
 		}
 
