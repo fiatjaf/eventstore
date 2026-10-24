@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/fiatjaf/eventstore"
+	"github.com/fiatjaf/eventstore/internal"
 	"github.com/mailru/easyjson"
 	"github.com/nbd-wtf/go-nostr"
 )
@@ -38,6 +39,11 @@ func (s *StrfryBackend) Init() error {
 func (_ StrfryBackend) Close() {}
 
 func (s StrfryBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (chan *nostr.Event, error) {
+	filter, unsatisfiable := internal.SanitizeFilter(filter)
+	if unsatisfiable {
+		return internal.NoEvents(), nil
+	}
+
 	stdout, err := s.baseStrfryScan(ctx, filter)
 	if err != nil {
 		return nil, err
@@ -121,6 +127,11 @@ func (s StrfryBackend) DeleteEvent(ctx context.Context, evt *nostr.Event) error 
 }
 
 func (s StrfryBackend) CountEvents(ctx context.Context, filter nostr.Filter) (int64, error) {
+	filter, unsatisfiable := internal.SanitizeFilter(filter)
+	if unsatisfiable {
+		return 0, nil
+	}
+
 	stdout, err := s.baseStrfryScan(ctx, filter)
 	if err != nil {
 		return 0, err

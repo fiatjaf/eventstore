@@ -11,6 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+	"github.com/fiatjaf/eventstore/internal"
 	"github.com/nbd-wtf/go-nostr"
 )
 
@@ -81,6 +82,11 @@ func buildBuilder(filter nostr.Filter) expression.Builder {
 }
 
 func (d *DynamoDBBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (chan *nostr.Event, error) {
+	filter, unsatisfiable := internal.SanitizeFilter(filter)
+	if unsatisfiable {
+		return internal.NoEvents(), nil
+	}
+
 	limit := filter.Limit
 	if filter.Limit < 1 || filter.Limit > d.QueryLimit {
 		limit = d.QueryLimit
@@ -146,6 +152,11 @@ func (d *DynamoDBBackend) QueryEvents(ctx context.Context, filter nostr.Filter) 
 }
 
 func (d *DynamoDBBackend) CountEvents(ctx context.Context, filter nostr.Filter) (int64, error) {
+	filter, unsatisfiable := internal.SanitizeFilter(filter)
+	if unsatisfiable {
+		return 0, nil
+	}
+
 	expr, err := buildBuilder(filter).Build()
 	if err != nil {
 		return 0, err

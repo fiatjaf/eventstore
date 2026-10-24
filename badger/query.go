@@ -19,6 +19,11 @@ import (
 var batchFilled = errors.New("batch-filled")
 
 func (b *BadgerBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (chan *nostr.Event, error) {
+	filter, unsatisfiable := internal.SanitizeFilter(filter)
+	if unsatisfiable {
+		return internal.NoEvents(), nil
+	}
+
 	ch := make(chan *nostr.Event)
 
 	if filter.Search != "" {

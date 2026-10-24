@@ -8,10 +8,16 @@ import (
 
 	"github.com/blugelabs/bluge"
 	"github.com/blugelabs/bluge/search"
+	"github.com/fiatjaf/eventstore/internal"
 	"github.com/nbd-wtf/go-nostr"
 )
 
 func (b *BlugeBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (chan *nostr.Event, error) {
+	filter, unsatisfiable := internal.SanitizeFilter(filter)
+	if unsatisfiable {
+		return internal.NoEvents(), nil
+	}
+
 	ch := make(chan *nostr.Event)
 
 	if len(filter.Search) < 2 {

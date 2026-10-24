@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/fiatjaf/eventstore/internal"
 	"github.com/nbd-wtf/go-nostr"
 )
 
@@ -19,6 +20,11 @@ var (
 
 // QueryEvents is an implementation of the QueryEvents method of the eventstore.Store interfac for edgedb
 func (b *EdgeDBBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (chan *nostr.Event, error) {
+	filter, unsatisfiable := internal.SanitizeFilter(filter)
+	if unsatisfiable {
+		return internal.NoEvents(), nil
+	}
+
 	query, args, err := b.queryEventsEdgeql(filter, false)
 	if err != nil {
 		return nil, err

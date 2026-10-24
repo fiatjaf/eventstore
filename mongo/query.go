@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log"
+
+	"github.com/fiatjaf/eventstore/internal"
 	"github.com/nbd-wtf/go-nostr"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
-	"log"
 )
 
 var (
@@ -19,6 +21,10 @@ var (
 )
 
 func (m *MongoDBBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (chan *nostr.Event, error) {
+	filter, unsatisfiable := internal.SanitizeFilter(filter)
+	if unsatisfiable {
+		return internal.NoEvents(), nil
+	}
 
 	conditions, projections, err := m.queryEvents(filter, false)
 	if err != nil {
@@ -70,6 +76,11 @@ func (m *MongoDBBackend) QueryEvents(ctx context.Context, filter nostr.Filter) (
 }
 
 func (m *MongoDBBackend) CountEvents(ctx context.Context, filter nostr.Filter) (int64, error) {
+	filter, unsatisfiable := internal.SanitizeFilter(filter)
+	if unsatisfiable {
+		return 0, nil
+	}
+
 	var count int64
 	conditions, projection, err := m.queryEvents(filter, true)
 	if err != nil {

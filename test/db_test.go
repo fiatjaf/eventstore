@@ -30,6 +30,7 @@ var tests = []struct {
 	{"second", runSecondTestOn},
 	{"manyauthors", manyAuthorsTest},
 	{"unbalanced", unbalancedTest},
+	{"emptylists", emptyListsTest},
 }
 
 func TestSliceStore(t *testing.T) {
